@@ -100,13 +100,13 @@ export default function AdminReviews() {
 
   return (
     <AdminLayout title="Reviews">
-      <div className="space-y-6" data-testid="admin-reviews">
+      <div className="space-y-4 lg:space-y-6" data-testid="admin-reviews">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <p className="text-white/60">Manage customer reviews</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-white/60 text-sm lg:text-base">Manage customer reviews</p>
           <Button 
             onClick={() => handleOpenDialog()}
-            className="bg-gold-500 hover:bg-gold-600 text-black"
+            className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto"
             data-testid="add-review-btn"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -114,8 +114,63 @@ export default function AdminReviews() {
           </Button>
         </div>
 
-        {/* Reviews Table */}
-        <div className="bg-card border border-white/10 rounded-lg overflow-hidden">
+        {/* Reviews - Mobile Cards */}
+        <div className="lg:hidden space-y-3">
+          {isLoading ? (
+            <div className="text-center py-8 text-white/40">Loading...</div>
+          ) : reviews.length === 0 ? (
+            <div className="text-center py-8 text-white/40">No reviews found</div>
+          ) : (
+            reviews.map((review) => (
+              <div 
+                key={review.id} 
+                className="bg-card border border-white/10 rounded-lg p-4"
+                data-testid={`review-card-${review.id}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`h-3 w-3 ${
+                              star <= review.rating ? 'text-gold-500 fill-gold-500' : 'text-white/20'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-white/40 text-xs">{formatDate(review.review_date)}</span>
+                    </div>
+                    <h3 className="text-white font-medium text-sm">{review.reviewer_name}</h3>
+                    <p className="text-white/60 text-sm mt-1 line-clamp-2">{review.comment}</p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenDialog(review)}
+                      className="text-white/60 hover:text-gold-500 p-2"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(review.id)}
+                      className="text-white/60 hover:text-red-500 p-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop Table */}
+        <div className="hidden lg:block bg-card border border-white/10 rounded-lg overflow-hidden">
           <table className="w-full admin-table">
             <thead>
               <tr className="border-b border-white/10">
@@ -182,14 +237,14 @@ export default function AdminReviews() {
 
         {/* Review Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="bg-card border-white/10 text-white max-w-lg">
+          <DialogContent className="bg-card border-white/10 text-white max-w-lg mx-4">
             <DialogHeader>
               <DialogTitle className="font-heading text-xl uppercase">
                 {editingReview ? 'Edit Review' : 'Add Review'}
               </DialogTitle>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
               <div className="space-y-2">
                 <Label>Reviewer Name</Label>
                 <Input
@@ -204,17 +259,17 @@ export default function AdminReviews() {
 
               <div className="space-y-2">
                 <Label>Rating</Label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
                       type="button"
                       onClick={() => setFormData({ ...formData, rating: star })}
-                      className="focus:outline-none"
+                      className="focus:outline-none p-1"
                       data-testid={`rating-star-${star}`}
                     >
                       <Star
-                        className={`h-8 w-8 transition-colors ${
+                        className={`h-6 w-6 lg:h-8 lg:w-8 transition-colors ${
                           star <= formData.rating 
                             ? 'text-gold-500 fill-gold-500' 
                             : 'text-white/20 hover:text-gold-500/50'
@@ -238,7 +293,7 @@ export default function AdminReviews() {
               </div>
 
               <div className="space-y-2">
-                <Label>Review Date (optional - defaults to today)</Label>
+                <Label>Review Date (optional)</Label>
                 <Input
                   type="date"
                   value={formData.review_date}
@@ -248,17 +303,18 @@ export default function AdminReviews() {
                 />
               </div>
 
-              <div className="flex justify-end gap-4">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={() => setIsDialogOpen(false)}
+                  className="w-full sm:w-auto"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  className="bg-gold-500 hover:bg-gold-600 text-black"
+                  className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto"
                   data-testid="save-review-btn"
                 >
                   {editingReview ? 'Update' : 'Create'} Review
