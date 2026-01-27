@@ -27,6 +27,18 @@ export const authAPI = {
   getMe: () => api.get('/auth/me'),
 };
 
+// Upload API
+export const uploadAPI = {
+  uploadImage: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  getImageUrl: (path) => `${BACKEND_URL}${path}`,
+};
+
 // Products API
 export const productsAPI = {
   getAll: (categoryId = null, activeOnly = true) => {
@@ -44,7 +56,9 @@ export const productsAPI = {
 // Categories API
 export const categoriesAPI = {
   getAll: () => api.get('/categories'),
-  create: (name) => api.post(`/categories?name=${encodeURIComponent(name)}`),
+  create: (data) => api.post('/categories', data),
+  update: (id, data) => api.put(`/categories/${id}`, data),
+  delete: (id) => api.delete(`/categories/${id}`),
 };
 
 // Reviews API
@@ -73,6 +87,7 @@ export const socialLinksAPI = {
 // Seed API
 export const seedAPI = {
   seed: () => api.post('/seed'),
+  clearProducts: () => api.post('/clear-products'),
 };
 
 export default api;
