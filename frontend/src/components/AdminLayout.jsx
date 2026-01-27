@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Star, FileText, Share2, LogOut, Home, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Package, FolderOpen, Star, FileText, Share2, LogOut, Home, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const LOGO_URL = "https://customer-assets.emergentagent.com/job_8ec93a6a-4f80-4dde-b760-4bc71482fa44/artifacts/4uqt5osn_Staff.zip%20-%201.png";
 
 const navItems = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/admin/categories', label: 'Categories', icon: FolderOpen },
   { path: '/admin/products', label: 'Products', icon: Package },
   { path: '/admin/reviews', label: 'Reviews', icon: Star },
   { path: '/admin/pages', label: 'Pages', icon: FileText },
