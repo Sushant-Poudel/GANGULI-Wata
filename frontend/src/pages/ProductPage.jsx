@@ -106,18 +106,6 @@ export default function ProductPage() {
                   className="w-full h-full object-cover"
                 />
               </div>
-              
-              {/* Trust Badges under image - Hidden on mobile, shown below order button */}
-              <div className="hidden lg:grid mt-6 grid-cols-2 gap-4">
-                <div className="flex items-center gap-3 bg-card/50 p-4 rounded-lg border border-white/10">
-                  <Shield className="h-5 w-5 text-gold-500" />
-                  <span className="text-white/80 text-sm">Genuine Product</span>
-                </div>
-                <div className="flex items-center gap-3 bg-card/50 p-4 rounded-lg border border-white/10">
-                  <Clock className="h-5 w-5 text-gold-500" />
-                  <span className="text-white/80 text-sm">Instant Delivery</span>
-                </div>
-              </div>
             </div>
 
             {/* Product Details */}
