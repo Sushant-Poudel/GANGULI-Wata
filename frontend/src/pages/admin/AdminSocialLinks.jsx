@@ -104,13 +104,13 @@ export default function AdminSocialLinks() {
 
   return (
     <AdminLayout title="Social Links">
-      <div className="space-y-6" data-testid="admin-social-links">
+      <div className="space-y-4 lg:space-y-6" data-testid="admin-social-links">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <p className="text-white/60">Manage your social media links displayed in the footer</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-white/60 text-sm lg:text-base">Manage your social media links</p>
           <Button 
             onClick={() => handleOpenDialog()}
-            className="bg-gold-500 hover:bg-gold-600 text-black"
+            className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto"
             data-testid="add-social-link-btn"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -119,7 +119,7 @@ export default function AdminSocialLinks() {
         </div>
 
         {/* Links Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
           {isLoading ? (
             [1, 2, 3].map((i) => (
               <div key={i} className="h-24 skeleton rounded-lg"></div>
@@ -135,8 +135,8 @@ export default function AdminSocialLinks() {
                 className="bg-card border border-white/10 rounded-lg p-4 hover:border-gold-500/30 transition-all"
                 data-testid={`social-link-card-${link.id}`}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-heading font-semibold text-white uppercase">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-heading font-semibold text-white uppercase text-sm lg:text-base">
                     {link.platform}
                   </h3>
                   <div className="flex items-center gap-1">
@@ -144,7 +144,7 @@ export default function AdminSocialLinks() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleOpenDialog(link)}
-                      className="text-white/60 hover:text-gold-500"
+                      className="text-white/60 hover:text-gold-500 p-2"
                       data-testid={`edit-social-${link.id}`}
                     >
                       <Pencil className="h-4 w-4" />
@@ -153,7 +153,7 @@ export default function AdminSocialLinks() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDelete(link.id)}
-                      className="text-white/60 hover:text-red-500"
+                      className="text-white/60 hover:text-red-500 p-2"
                       data-testid={`delete-social-${link.id}`}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -164,7 +164,7 @@ export default function AdminSocialLinks() {
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white/60 hover:text-gold-500 text-sm flex items-center gap-2 truncate"
+                  className="text-white/60 hover:text-gold-500 text-xs lg:text-sm flex items-center gap-2"
                 >
                   <ExternalLink className="h-3 w-3 flex-shrink-0" />
                   <span className="truncate">{link.url}</span>
@@ -176,14 +176,14 @@ export default function AdminSocialLinks() {
 
         {/* Social Link Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="bg-card border-white/10 text-white max-w-md">
+          <DialogContent className="bg-card border-white/10 text-white max-w-md mx-4">
             <DialogHeader>
               <DialogTitle className="font-heading text-xl uppercase">
                 {editingLink ? 'Edit Social Link' : 'Add Social Link'}
               </DialogTitle>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
               <div className="space-y-2">
                 <Label>Platform</Label>
                 <Select 
@@ -215,17 +215,18 @@ export default function AdminSocialLinks() {
                 />
               </div>
 
-              <div className="flex justify-end gap-4">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={() => setIsDialogOpen(false)}
+                  className="w-full sm:w-auto"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  className="bg-gold-500 hover:bg-gold-600 text-black"
+                  className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto"
                   data-testid="save-social-link-btn"
                 >
                   {editingLink ? 'Update' : 'Create'} Link

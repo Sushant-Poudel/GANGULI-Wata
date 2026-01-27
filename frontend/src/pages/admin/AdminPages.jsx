@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,16 +72,16 @@ export default function AdminPages() {
 
   return (
     <AdminLayout title="Pages">
-      <div className="space-y-6" data-testid="admin-pages">
-        <p className="text-white/60">Edit content for About, Contact, and FAQ pages</p>
+      <div className="space-y-4 lg:space-y-6" data-testid="admin-pages">
+        <p className="text-white/60 text-sm lg:text-base">Edit content for About, Contact, and FAQ pages</p>
 
         <Tabs defaultValue="about" className="w-full">
-          <TabsList className="bg-card border border-white/10">
+          <TabsList className="bg-card border border-white/10 w-full lg:w-auto grid grid-cols-3 lg:flex">
             {pageKeys.map((key) => (
               <TabsTrigger 
                 key={key} 
                 value={key}
-                className="data-[state=active]:bg-gold-500 data-[state=active]:text-black"
+                className="data-[state=active]:bg-gold-500 data-[state=active]:text-black text-xs lg:text-sm"
                 data-testid={`tab-${key}`}
               >
                 {key.charAt(0).toUpperCase() + key.slice(1)}
@@ -90,8 +90,8 @@ export default function AdminPages() {
           </TabsList>
 
           {pageKeys.map((pageKey) => (
-            <TabsContent key={pageKey} value={pageKey} className="mt-6">
-              <div className="bg-card border border-white/10 rounded-lg p-6 space-y-6">
+            <TabsContent key={pageKey} value={pageKey} className="mt-4 lg:mt-6">
+              <div className="bg-card border border-white/10 rounded-lg p-4 lg:p-6 space-y-4 lg:space-y-6">
                 <div className="space-y-2">
                   <Label>Page Title</Label>
                   <Input
@@ -106,10 +106,10 @@ export default function AdminPages() {
                   <Label>Page Content (HTML supported)</Label>
                   <div className="bg-black border border-white/20 rounded-lg">
                     {/* Rich Text Toolbar */}
-                    <div className="flex items-center gap-2 p-2 border-b border-white/10">
+                    <div className="flex items-center gap-1 lg:gap-2 p-2 border-b border-white/10 flex-wrap">
                       <button
                         type="button"
-                        className="p-2 rounded hover:bg-white/10 text-white/60 hover:text-white text-sm font-bold"
+                        className="p-1.5 lg:p-2 rounded hover:bg-white/10 text-white/60 hover:text-white text-xs lg:text-sm font-bold"
                         onClick={() => {
                           const content = pages[pageKey]?.content || '';
                           handleUpdatePage(pageKey, 'content', content + '<strong></strong>');
@@ -120,7 +120,7 @@ export default function AdminPages() {
                       </button>
                       <button
                         type="button"
-                        className="p-2 rounded hover:bg-white/10 text-white/60 hover:text-white text-sm italic"
+                        className="p-1.5 lg:p-2 rounded hover:bg-white/10 text-white/60 hover:text-white text-xs lg:text-sm italic"
                         onClick={() => {
                           const content = pages[pageKey]?.content || '';
                           handleUpdatePage(pageKey, 'content', content + '<em></em>');
@@ -131,7 +131,7 @@ export default function AdminPages() {
                       </button>
                       <button
                         type="button"
-                        className="p-2 rounded hover:bg-white/10 text-white/60 hover:text-white text-sm underline"
+                        className="p-1.5 lg:p-2 rounded hover:bg-white/10 text-white/60 hover:text-white text-xs lg:text-sm underline"
                         onClick={() => {
                           const content = pages[pageKey]?.content || '';
                           handleUpdatePage(pageKey, 'content', content + '<u></u>');
@@ -140,10 +140,10 @@ export default function AdminPages() {
                       >
                         U
                       </button>
-                      <div className="h-4 w-px bg-white/20 mx-2"></div>
+                      <div className="h-4 w-px bg-white/20 mx-1 hidden sm:block"></div>
                       <button
                         type="button"
-                        className="px-2 py-1 rounded hover:bg-white/10 text-white/60 hover:text-white text-xs"
+                        className="px-1.5 lg:px-2 py-1 rounded hover:bg-white/10 text-white/60 hover:text-white text-xs"
                         onClick={() => {
                           const content = pages[pageKey]?.content || '';
                           handleUpdatePage(pageKey, 'content', content + '<h2></h2>');
@@ -154,7 +154,7 @@ export default function AdminPages() {
                       </button>
                       <button
                         type="button"
-                        className="px-2 py-1 rounded hover:bg-white/10 text-white/60 hover:text-white text-xs"
+                        className="px-1.5 lg:px-2 py-1 rounded hover:bg-white/10 text-white/60 hover:text-white text-xs"
                         onClick={() => {
                           const content = pages[pageKey]?.content || '';
                           handleUpdatePage(pageKey, 'content', content + '<p></p>');
@@ -165,31 +165,31 @@ export default function AdminPages() {
                       </button>
                       <button
                         type="button"
-                        className="px-2 py-1 rounded hover:bg-white/10 text-white/60 hover:text-white text-xs"
+                        className="px-1.5 lg:px-2 py-1 rounded hover:bg-white/10 text-white/60 hover:text-white text-xs"
                         onClick={() => {
                           const content = pages[pageKey]?.content || '';
                           handleUpdatePage(pageKey, 'content', content + '<ul><li></li></ul>');
                         }}
                         title="List"
                       >
-                        • List
+                        List
                       </button>
                     </div>
                     <Textarea
                       value={pages[pageKey]?.content || ''}
                       onChange={(e) => handleUpdatePage(pageKey, 'content', e.target.value)}
-                      className="border-0 min-h-[300px] rounded-t-none"
+                      className="border-0 min-h-[150px] lg:min-h-[300px] rounded-t-none text-sm"
                       placeholder="<p>Enter your content here...</p>"
                       data-testid={`page-content-${pageKey}`}
                     />
                   </div>
-                  <p className="text-white/40 text-sm">
-                    Use HTML tags for formatting: &lt;p&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;h2&gt;
+                  <p className="text-white/40 text-xs">
+                    HTML tags: &lt;p&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;h2&gt;
                   </p>
                 </div>
 
-                {/* Preview */}
-                <div className="space-y-2">
+                {/* Preview - Hidden on mobile to save space */}
+                <div className="space-y-2 hidden lg:block">
                   <Label>Preview</Label>
                   <div className="bg-black border border-white/20 rounded-lg p-6 min-h-[200px]">
                     <div 
@@ -203,7 +203,7 @@ export default function AdminPages() {
                   <Button
                     onClick={() => handleSavePage(pageKey)}
                     disabled={savingPage === pageKey}
-                    className="bg-gold-500 hover:bg-gold-600 text-black"
+                    className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto"
                     data-testid={`save-page-${pageKey}`}
                   >
                     {savingPage === pageKey ? (
@@ -217,7 +217,7 @@ export default function AdminPages() {
                     ) : (
                       <>
                         <Save className="h-4 w-4 mr-2" />
-                        Save {pageKey.charAt(0).toUpperCase() + pageKey.slice(1)} Page
+                        Save Page
                       </>
                     )}
                   </Button>
