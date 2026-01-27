@@ -107,41 +107,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Trust Badges */}
-      <section className="py-8 lg:py-12 border-y border-white/10" data-testid="trust-badges">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 lg:gap-8">
-            <div className="flex items-center gap-3 lg:gap-4 justify-center sm:justify-start">
-              <div className="p-2 lg:p-3 rounded-lg bg-gold-500/10">
-                <Clock className="h-5 w-5 lg:h-6 lg:w-6 text-gold-500" />
-              </div>
-              <div>
-                <h3 className="font-heading font-semibold text-white uppercase text-sm lg:text-base">Instant Delivery</h3>
-                <p className="text-white/60 text-xs lg:text-sm">Products delivered in minutes</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 lg:gap-4 justify-center">
-              <div className="p-2 lg:p-3 rounded-lg bg-gold-500/10">
-                <Shield className="h-5 w-5 lg:h-6 lg:w-6 text-gold-500" />
-              </div>
-              <div>
-                <h3 className="font-heading font-semibold text-white uppercase text-sm lg:text-base">100% Safe</h3>
-                <p className="text-white/60 text-xs lg:text-sm">Secure transactions guaranteed</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 lg:gap-4 justify-center sm:justify-end">
-              <div className="p-2 lg:p-3 rounded-lg bg-gold-500/10">
-                <Headphones className="h-5 w-5 lg:h-6 lg:w-6 text-gold-500" />
-              </div>
-              <div>
-                <h3 className="font-heading font-semibold text-white uppercase text-sm lg:text-base">24/7 Support</h3>
-                <p className="text-white/60 text-xs lg:text-sm">Always here to help</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Products Section */}
       <section className="py-10 lg:py-16" data-testid="products-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
