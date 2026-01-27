@@ -54,8 +54,9 @@ export default function AdminDashboard() {
           {statCards.map((stat) => {
             const Icon = stat.icon;
             return (
-              <div
+              <Link
                 key={stat.label}
+                to={stat.link}
                 className="bg-card border border-white/10 rounded-lg p-4 lg:p-6 hover:border-gold-500/30 transition-all"
                 data-testid={`stat-card-${stat.label.toLowerCase()}`}
               >
@@ -68,7 +69,7 @@ export default function AdminDashboard() {
                 <p className="font-heading text-2xl lg:text-3xl font-bold text-white">
                   {isLoading ? '-' : stat.value}
                 </p>
-              </div>
+              </Link>
             );
           })}
         </div>
