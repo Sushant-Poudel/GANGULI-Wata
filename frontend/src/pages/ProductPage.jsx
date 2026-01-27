@@ -212,18 +212,6 @@ export default function ProductPage() {
                 Order Now via WhatsApp
               </Button>
 
-              {/* Mobile Trust Badges */}
-              <div className="grid lg:hidden grid-cols-2 gap-3">
-                <div className="flex items-center gap-2 bg-card/50 p-3 rounded-lg border border-white/10">
-                  <Shield className="h-4 w-4 text-gold-500" />
-                  <span className="text-white/80 text-xs">Genuine Product</span>
-                </div>
-                <div className="flex items-center gap-2 bg-card/50 p-3 rounded-lg border border-white/10">
-                  <Clock className="h-4 w-4 text-gold-500" />
-                  <span className="text-white/80 text-xs">Instant Delivery</span>
-                </div>
-              </div>
-
               {/* Additional Info */}
               <div className="text-center text-white/40 text-xs lg:text-sm">
                 <p>Questions? Contact us at support@gameshopnepal.com</p>
