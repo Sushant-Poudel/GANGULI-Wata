@@ -50,18 +50,18 @@ export default function HomePage() {
       <Navbar />
       
       {/* Hero Section with Reviews */}
-      <section className="pt-20" data-testid="reviews-section">
+      <section className="pt-16 lg:pt-20" data-testid="reviews-section">
         {/* Trustpilot Strip */}
-        <div className="trustpilot-section py-4 border-b border-white/10">
+        <div className="trustpilot-section py-3 lg:py-4 border-b border-white/10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 lg:gap-4">
+              <div className="flex items-center gap-2 lg:gap-4">
+                <div className="flex items-center gap-0.5 lg:gap-1">
                   {[1, 2, 3, 4, 5].map((star) => (
-                    <Star key={star} className="h-5 w-5 text-gold-500 fill-gold-500" />
+                    <Star key={star} className="h-4 w-4 lg:h-5 lg:w-5 text-gold-500 fill-gold-500" />
                   ))}
                 </div>
-                <span className="text-white font-heading font-semibold uppercase tracking-wider">
+                <span className="text-white font-heading font-semibold uppercase tracking-wider text-sm lg:text-base">
                   Excellent on Trustpilot
                 </span>
               </div>
@@ -70,10 +70,11 @@ export default function HomePage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="check-all-reviews-btn"
+                className="w-full sm:w-auto"
               >
-                <Button variant="outline" className="border-gold-500 text-gold-500 hover:bg-gold-500 hover:text-black font-heading uppercase tracking-wider">
+                <Button variant="outline" className="border-gold-500 text-gold-500 hover:bg-gold-500 hover:text-black font-heading uppercase tracking-wider text-xs lg:text-sm w-full sm:w-auto">
                   Check All Reviews
-                  <ExternalLink className="ml-2 h-4 w-4" />
+                  <ExternalLink className="ml-2 h-3 w-3 lg:h-4 lg:w-4" />
                 </Button>
               </a>
             </div>
