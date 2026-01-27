@@ -181,6 +181,24 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("user_id")
+        if user_id == "admin-fixed":
+            return {
+                "id": "admin-fixed",
+                "email": ADMIN_USERNAME,
+                "name": "Admin",
+                "is_admin": True
+            }
+        raise HTTPException(status_code=401, detail="Invalid user")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
 # ==================== CATEGORY ROUTES ====================
 
 @api_router.get("/categories", response_model=List[Category])
