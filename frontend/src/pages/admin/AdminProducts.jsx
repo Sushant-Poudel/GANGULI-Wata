@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { Plus, Pencil, Trash2, X, Upload, Image, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Plus, Pencil, Trash2, X, Link, Image, ChevronUp, ChevronDown } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { productsAPI, categoriesAPI, uploadAPI } from '@/lib/api';
+import { productsAPI, categoriesAPI } from '@/lib/api';
 
 const AVAILABLE_TAGS = ['Popular', 'Sale', 'New', 'Limited', 'Hot', 'Best Seller'];
 
@@ -41,9 +41,6 @@ export default function AdminProducts() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState(emptyProduct);
   const [newVariation, setNewVariation] = useState(emptyVariation);
-  const [isUploading, setIsUploading] = useState(false);
-  const [imagePreview, setImagePreview] = useState('');
-  const fileInputRef = useRef(null);
 
   const fetchData = async () => {
     try {
@@ -78,41 +75,12 @@ export default function AdminProducts() {
         is_active: product.is_active,
         is_sold_out: product.is_sold_out
       });
-      setImagePreview(product.image_url);
     } else {
       setEditingProduct(null);
       setFormData(emptyProduct);
-      setImagePreview('');
     }
     setNewVariation(emptyVariation);
     setIsDialogOpen(true);
-  };
-
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size must be less than 5MB');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => setImagePreview(e.target.result);
-    reader.readAsDataURL(file);
-
-    setIsUploading(true);
-    try {
-      const res = await uploadAPI.uploadImage(file);
-      const imageUrl = uploadAPI.getImageUrl(res.data.url);
-      setFormData({ ...formData, image_url: imageUrl });
-      toast.success('Image uploaded!');
-    } catch (error) {
-      toast.error('Failed to upload image');
-      setImagePreview('');
-    } finally {
-      setIsUploading(false);
-    }
   };
 
   const handleAddVariation = () => {
@@ -152,7 +120,7 @@ export default function AdminProducts() {
     e.preventDefault();
     
     if (!formData.image_url) {
-      toast.error('Please upload an image');
+      toast.error('Please provide an image URL');
       return;
     }
     
@@ -334,42 +302,28 @@ export default function AdminProducts() {
             </DialogHeader>
 
             <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
-              {/* Image Upload */}
+              {/* Image URL Input */}
               <div className="space-y-2">
-                <Label>Product Image</Label>
-                <div 
-                  className="border-2 border-dashed border-white/20 rounded-lg p-4 text-center cursor-pointer hover:border-gold-500/50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {imagePreview ? (
-                    <div className="relative">
-                      <img 
-                        src={imagePreview} 
-                        alt="Preview" 
-                        className="w-32 h-32 object-cover rounded-lg mx-auto"
-                      />
-                      <p className="text-white/40 text-xs mt-2">Click to change</p>
-                    </div>
-                  ) : (
-                    <div className="py-4">
-                      <Upload className="h-8 w-8 mx-auto text-white/40 mb-2" />
-                      <p className="text-white/60 text-sm">Click to upload image</p>
-                      <p className="text-white/40 text-xs mt-1">PNG, JPG, WebP (max 5MB)</p>
-                    </div>
-                  )}
-                  {isUploading && (
-                    <div className="mt-2">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-gold-500 mx-auto"></div>
-                    </div>
-                  )}
+                <Label>Product Image URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={formData.image_url}
+                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                    className="bg-black border-white/20 flex-1"
+                    placeholder="https://example.com/image.png"
+                  />
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
+                {formData.image_url && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <img 
+                      src={formData.image_url} 
+                      alt="Preview" 
+                      className="w-20 h-20 object-cover rounded-lg"
+                      onError={(e) => e.target.style.display = 'none'}
+                    />
+                    <span className="text-white/40 text-xs">Image preview</span>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

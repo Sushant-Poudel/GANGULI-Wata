@@ -5,6 +5,8 @@ import ProductPage from "@/pages/ProductPage";
 import AboutPage from "@/pages/AboutPage";
 import FAQPage from "@/pages/FAQPage";
 import TermsPage from "@/pages/TermsPage";
+import BlogPage from "@/pages/BlogPage";
+import BlogPostPage from "@/pages/BlogPostPage";
 import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminProducts from "@/pages/admin/AdminProducts";
@@ -14,6 +16,9 @@ import AdminFAQs from "@/pages/admin/AdminFAQs";
 import AdminPages from "@/pages/admin/AdminPages";
 import AdminSocialLinks from "@/pages/admin/AdminSocialLinks";
 import AdminTakeApp from "@/pages/admin/AdminTakeApp";
+import AdminPaymentMethods from "@/pages/admin/AdminPaymentMethods";
+import AdminNotificationBar from "@/pages/admin/AdminNotificationBar";
+import AdminBlog from "@/pages/admin/AdminBlog";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import "@/App.css";
 
@@ -28,6 +33,8 @@ function App() {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/faq" element={<FAQPage />} />
           <Route path="/terms" element={<TermsPage />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
           
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -39,6 +46,9 @@ function App() {
           <Route path="/admin/pages" element={<ProtectedRoute><AdminPages /></ProtectedRoute>} />
           <Route path="/admin/social-links" element={<ProtectedRoute><AdminSocialLinks /></ProtectedRoute>} />
           <Route path="/admin/takeapp" element={<ProtectedRoute><AdminTakeApp /></ProtectedRoute>} />
+          <Route path="/admin/payment-methods" element={<ProtectedRoute><AdminPaymentMethods /></ProtectedRoute>} />
+          <Route path="/admin/notification-bar" element={<ProtectedRoute><AdminNotificationBar /></ProtectedRoute>} />
+          <Route path="/admin/blog" element={<ProtectedRoute><AdminBlog /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" richColors />

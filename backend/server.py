@@ -603,7 +603,7 @@ async def update_takeapp_inventory(item_id: str, quantity: int = Body(..., embed
 # Order creation models
 class OrderItem(BaseModel):
     name: str
-    price: int  # in paisa (1 rupee = 100 paisa)
+    price: float  # in rupees (NOT paisa)
     quantity: int = 1
     variation: Optional[str] = None
 
@@ -612,15 +612,33 @@ class CreateOrderRequest(BaseModel):
     customer_phone: str
     customer_email: Optional[str] = None
     items: List[OrderItem]
-    total_amount: int  # in paisa
+    total_amount: float  # in rupees (NOT paisa)
     remark: Optional[str] = None
+
+class PaymentScreenshotRequest(BaseModel):
+    order_id: str
+    screenshot_url: str
+
+# Store alias for Take.app
+TAKEAPP_STORE_ALIAS = "gsn"
 
 @api_router.post("/orders/create")
 async def create_order(order_data: CreateOrderRequest):
-    """Create an order - saves locally and syncs to Take.app"""
+    """Create an order on Take.app and return payment URL"""
     
-    # Generate order ID
+    # Generate local order ID
     order_id = str(uuid.uuid4())
+    
+    # Format phone number for Take.app (needs country code 977 for Nepal)
+    def format_phone_number(phone):
+        phone = ''.join(filter(str.isdigit, phone))
+        if phone.startswith('0'):
+            phone = phone[1:]
+        if not phone.startswith('977') and len(phone) == 10:
+            phone = '977' + phone
+        return phone
+    
+    formatted_phone = format_phone_number(order_data.customer_phone)
     
     # Build remark with item details
     items_text = ", ".join([f"{item.quantity}x {item.name}" + (f" ({item.variation})" if item.variation else "") for item in order_data.items])
@@ -628,65 +646,104 @@ async def create_order(order_data: CreateOrderRequest):
     if order_data.remark:
         full_remark += f"\nNote: {order_data.remark}"
     
-    # Save order locally first
+    # Total amount in rupees - Take.app expects rupees as string
+    total_amount_rupees = str(int(order_data.total_amount))
+    
+    # Create order on Take.app
+    takeapp_order_id = None
+    takeapp_order_number = None
+    payment_url = None
+    
+    if TAKEAPP_API_KEY:
+        try:
+            async with httpx.AsyncClient() as client:
+                takeapp_payload = {
+                    "customer_name": order_data.customer_name,
+                    "customer_phone": formatted_phone,
+                    "customer_email": order_data.customer_email or "",
+                    "total_amount": total_amount_rupees,  # in rupees as string
+                    "remark": full_remark
+                }
+                
+                logger.info(f"Creating Take.app order: {takeapp_payload}")
+                
+                response = await client.post(
+                    f"{TAKEAPP_BASE_URL}/orders?api_key={TAKEAPP_API_KEY}",
+                    json=takeapp_payload,
+                    timeout=15.0
+                )
+                
+                logger.info(f"Take.app response: {response.status_code} - {response.text}")
+                
+                if response.status_code in [200, 201]:
+                    takeapp_result = response.json()
+                    takeapp_order_id = takeapp_result.get("id")
+                    takeapp_order_number = takeapp_result.get("number")
+                    
+                    # Build payment URL: take.app/gsn/orders/{order_id}/pay
+                    payment_url = f"https://take.app/{TAKEAPP_STORE_ALIAS}/orders/{takeapp_order_id}/pay"
+                else:
+                    logger.error(f"Take.app order creation failed: {response.status_code} - {response.text}")
+                    raise HTTPException(status_code=500, detail="Failed to create order on Take.app")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to create order on Take.app: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to create order: {str(e)}")
+    else:
+        raise HTTPException(status_code=500, detail="Take.app API key not configured")
+    
+    # Save order locally
     local_order = {
         "id": order_id,
+        "takeapp_order_id": takeapp_order_id,
+        "takeapp_order_number": takeapp_order_number,
         "customer_name": order_data.customer_name,
         "customer_phone": order_data.customer_phone,
         "customer_email": order_data.customer_email,
         "items": [item.model_dump() for item in order_data.items],
         "total_amount": order_data.total_amount,
         "remark": order_data.remark,
+        "items_text": items_text,
         "status": "pending",
-        "takeapp_synced": False,
-        "takeapp_order_id": None,
+        "payment_screenshot": None,
+        "payment_url": payment_url,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
     await db.orders.insert_one(local_order)
     
-    # Try to sync to Take.app
-    takeapp_result = None
-    if TAKEAPP_API_KEY:
-        try:
-            async with httpx.AsyncClient() as client:
-                takeapp_payload = {
-                    "customer_name": order_data.customer_name,
-                    "customer_phone": order_data.customer_phone,
-                    "customer_email": order_data.customer_email,
-                    "total_amount": order_data.total_amount,  # in paisa
-                    "remark": full_remark
-                }
-                
-                response = await client.post(
-                    f"{TAKEAPP_BASE_URL}/orders?api_key={TAKEAPP_API_KEY}",
-                    json=takeapp_payload,
-                    timeout=10.0
-                )
-                
-                if response.status_code in [200, 201]:
-                    takeapp_result = response.json()
-                    # Update local order with Take.app order ID
-                    await db.orders.update_one(
-                        {"id": order_id},
-                        {"$set": {
-                            "takeapp_synced": True,
-                            "takeapp_order_id": takeapp_result.get("id"),
-                            "takeapp_order_number": takeapp_result.get("number")
-                        }}
-                    )
-        except Exception as e:
-            print(f"Failed to sync order to Take.app: {e}")
-    
-    # Get updated order
-    final_order = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    
     return {
         "success": True,
         "order_id": order_id,
-        "takeapp_synced": final_order.get("takeapp_synced", False),
-        "takeapp_order_number": final_order.get("takeapp_order_number"),
-        "message": "Order created successfully"
+        "takeapp_order_id": takeapp_order_id,
+        "takeapp_order_number": takeapp_order_number,
+        "payment_url": payment_url,
+        "message": "Order created successfully on Take.app"
+    }
+
+@api_router.post("/orders/{order_id}/payment-screenshot")
+async def upload_payment_screenshot(order_id: str, screenshot_url: str = Body(..., embed=True)):
+    """Upload payment screenshot for an order"""
+    
+    # Find the local order
+    order = await db.orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Update local order with screenshot
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {
+            "payment_screenshot": screenshot_url,
+            "status": "confirming_payment"
+        }}
+    )
+    
+    return {
+        "success": True,
+        "message": "Payment screenshot uploaded successfully",
+        "order_id": order_id
     }
 
 @api_router.get("/orders")
@@ -794,6 +851,215 @@ async def get_takeapp_order_stats(current_user: dict = Depends(get_current_user)
             "total_revenue": total_revenue,
             "orders_last_24h": len(recent_orders)
         }
+
+# ==================== CONTACT LINKS ====================
+
+class ContactLink(BaseModel):
+    id: Optional[str] = None
+    platform: str  # whatsapp, messenger, email, telegram, viber, etc.
+    label: str
+    value: str  # phone number, email, or link
+    icon: Optional[str] = None
+    is_active: bool = True
+    sort_order: int = 0
+
+@api_router.get("/contacts")
+async def get_contacts():
+    """Get all active contact links"""
+    contacts = await db.contacts.find({"is_active": True}).sort("sort_order", 1).to_list(100)
+    for c in contacts:
+        c.pop("_id", None)
+    return contacts
+
+@api_router.get("/contacts/all")
+async def get_all_contacts(current_user: dict = Depends(get_current_user)):
+    """Get all contact links (admin)"""
+    contacts = await db.contacts.find().sort("sort_order", 1).to_list(100)
+    for c in contacts:
+        c.pop("_id", None)
+    return contacts
+
+@api_router.post("/contacts")
+async def create_contact(contact: ContactLink, current_user: dict = Depends(get_current_user)):
+    """Create a new contact link"""
+    contact_dict = contact.model_dump()
+    contact_dict["id"] = str(uuid.uuid4())
+    await db.contacts.insert_one(contact_dict)
+    return contact_dict
+
+@api_router.put("/contacts/{contact_id}")
+async def update_contact(contact_id: str, contact: ContactLink, current_user: dict = Depends(get_current_user)):
+    """Update a contact link"""
+    contact_dict = contact.model_dump()
+    contact_dict["id"] = contact_id
+    await db.contacts.update_one({"id": contact_id}, {"$set": contact_dict})
+    return contact_dict
+
+@api_router.delete("/contacts/{contact_id}")
+async def delete_contact(contact_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a contact link"""
+    await db.contacts.delete_one({"id": contact_id})
+    return {"message": "Contact deleted"}
+
+# ==================== PAYMENT METHODS ====================
+
+class PaymentMethod(BaseModel):
+    id: Optional[str] = None
+    name: str
+    image_url: str
+    is_active: bool = True
+    sort_order: int = 0
+
+@api_router.get("/payment-methods")
+async def get_payment_methods():
+    """Get all active payment methods"""
+    methods = await db.payment_methods.find({"is_active": True}).sort("sort_order", 1).to_list(100)
+    for m in methods:
+        m.pop("_id", None)
+    return methods
+
+@api_router.get("/payment-methods/all")
+async def get_all_payment_methods(current_user: dict = Depends(get_current_user)):
+    """Get all payment methods (admin)"""
+    methods = await db.payment_methods.find().sort("sort_order", 1).to_list(100)
+    for m in methods:
+        m.pop("_id", None)
+    return methods
+
+@api_router.post("/payment-methods")
+async def create_payment_method(method: PaymentMethod, current_user: dict = Depends(get_current_user)):
+    """Create a new payment method"""
+    method_dict = method.model_dump()
+    method_dict["id"] = str(uuid.uuid4())
+    await db.payment_methods.insert_one(method_dict)
+    return method_dict
+
+@api_router.put("/payment-methods/{method_id}")
+async def update_payment_method(method_id: str, method: PaymentMethod, current_user: dict = Depends(get_current_user)):
+    """Update a payment method"""
+    method_dict = method.model_dump()
+    method_dict["id"] = method_id
+    await db.payment_methods.update_one({"id": method_id}, {"$set": method_dict})
+    return method_dict
+
+@api_router.delete("/payment-methods/{method_id}")
+async def delete_payment_method(method_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a payment method"""
+    await db.payment_methods.delete_one({"id": method_id})
+    return {"message": "Payment method deleted"}
+
+# ==================== NOTIFICATION BAR ====================
+
+class NotificationBar(BaseModel):
+    id: Optional[str] = None
+    text: str
+    link: Optional[str] = None
+    is_active: bool = True
+    bg_color: Optional[str] = "#F5A623"
+    text_color: Optional[str] = "#000000"
+
+@api_router.get("/notification-bar")
+async def get_notification_bar():
+    """Get active notification bar"""
+    notification = await db.notification_bar.find_one({"is_active": True})
+    if notification:
+        notification.pop("_id", None)
+    return notification
+
+@api_router.put("/notification-bar")
+async def update_notification_bar(notification: NotificationBar, current_user: dict = Depends(get_current_user)):
+    """Update notification bar"""
+    notification_dict = notification.model_dump()
+    notification_dict["id"] = "main"
+    await db.notification_bar.update_one({"id": "main"}, {"$set": notification_dict}, upsert=True)
+    return notification_dict
+
+# ==================== BLOG POSTS ====================
+
+class BlogPost(BaseModel):
+    id: Optional[str] = None
+    title: str
+    slug: Optional[str] = None
+    excerpt: str
+    content: str
+    image_url: Optional[str] = None
+    is_published: bool = True
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+@api_router.get("/blog")
+async def get_blog_posts():
+    """Get all published blog posts"""
+    posts = await db.blog_posts.find({"is_published": True}).sort("created_at", -1).to_list(100)
+    for p in posts:
+        p.pop("_id", None)
+    return posts
+
+@api_router.get("/blog/{slug}")
+async def get_blog_post(slug: str):
+    """Get a single blog post by slug"""
+    post = await db.blog_posts.find_one({"slug": slug, "is_published": True})
+    if not post:
+        raise HTTPException(status_code=404, detail="Blog post not found")
+    post.pop("_id", None)
+    return post
+
+@api_router.get("/blog/all/admin")
+async def get_all_blog_posts(current_user: dict = Depends(get_current_user)):
+    """Get all blog posts (admin)"""
+    posts = await db.blog_posts.find().sort("created_at", -1).to_list(100)
+    for p in posts:
+        p.pop("_id", None)
+    return posts
+
+@api_router.post("/blog")
+async def create_blog_post(post: BlogPost, current_user: dict = Depends(get_current_user)):
+    """Create a new blog post"""
+    post_dict = post.model_dump()
+    post_dict["id"] = str(uuid.uuid4())
+    post_dict["slug"] = post_dict["slug"] or post_dict["title"].lower().replace(" ", "-").replace("?", "").replace("!", "")
+    post_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    post_dict["updated_at"] = post_dict["created_at"]
+    await db.blog_posts.insert_one(post_dict)
+    return post_dict
+
+@api_router.put("/blog/{post_id}")
+async def update_blog_post(post_id: str, post: BlogPost, current_user: dict = Depends(get_current_user)):
+    """Update a blog post"""
+    post_dict = post.model_dump()
+    post_dict["id"] = post_id
+    post_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.blog_posts.update_one({"id": post_id}, {"$set": post_dict})
+    return post_dict
+
+@api_router.delete("/blog/{post_id}")
+async def delete_blog_post(post_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a blog post"""
+    await db.blog_posts.delete_one({"id": post_id})
+    return {"message": "Blog post deleted"}
+
+# ==================== SITE SETTINGS ====================
+
+class SiteSettings(BaseModel):
+    notification_bar_enabled: bool = True
+    chat_enabled: bool = True
+    chat_whatsapp: Optional[str] = None
+
+@api_router.get("/settings")
+async def get_site_settings():
+    """Get site settings"""
+    settings = await db.site_settings.find_one({"id": "main"})
+    if not settings:
+        settings = {"id": "main", "notification_bar_enabled": True, "chat_enabled": True}
+    settings.pop("_id", None)
+    return settings
+
+@api_router.put("/settings")
+async def update_site_settings(settings: dict, current_user: dict = Depends(get_current_user)):
+    """Update site settings"""
+    settings["id"] = "main"
+    await db.site_settings.update_one({"id": "main"}, {"$set": settings}, upsert=True)
+    return settings
 
 # ==================== ROOT ====================
 

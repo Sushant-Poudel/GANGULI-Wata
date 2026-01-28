@@ -114,6 +114,48 @@ export const takeappAPI = {
 export const ordersAPI = {
   create: (data) => api.post('/orders/create', data),
   getAll: () => api.get('/orders'),
+  uploadPaymentScreenshot: (orderId, screenshotUrl) => 
+    api.post(`/orders/${orderId}/payment-screenshot`, { screenshot_url: screenshotUrl }),
+};
+
+// Contact Links API
+export const contactsAPI = {
+  getAll: () => api.get('/contacts'),
+  getAllAdmin: () => api.get('/contacts/all'),
+  create: (data) => api.post('/contacts', data),
+  update: (id, data) => api.put(`/contacts/${id}`, data),
+  delete: (id) => api.delete(`/contacts/${id}`),
+};
+
+// Payment Methods API
+export const paymentMethodsAPI = {
+  getAll: () => api.get('/payment-methods'),
+  getAllAdmin: () => api.get('/payment-methods/all'),
+  create: (data) => api.post('/payment-methods', data),
+  update: (id, data) => api.put(`/payment-methods/${id}`, data),
+  delete: (id) => api.delete(`/payment-methods/${id}`),
+};
+
+// Notification Bar API
+export const notificationBarAPI = {
+  get: () => api.get('/notification-bar'),
+  update: (data) => api.put('/notification-bar', data),
+};
+
+// Blog API
+export const blogAPI = {
+  getAll: () => api.get('/blog'),
+  getOne: (slug) => api.get(`/blog/${slug}`),
+  getAllAdmin: () => api.get('/blog/all/admin'),
+  create: (data) => api.post('/blog', data),
+  update: (id, data) => api.put(`/blog/${id}`, data),
+  delete: (id) => api.delete(`/blog/${id}`),
+};
+
+// Site Settings API
+export const settingsAPI = {
+  get: () => api.get('/settings'),
+  update: (data) => api.put('/settings', data),
 };
 
 export default api;

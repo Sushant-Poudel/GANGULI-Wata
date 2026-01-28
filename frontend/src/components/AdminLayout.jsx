@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, FolderOpen, Star, FileText, Share2, LogOut, Home, Menu, X, HelpCircle, Store } from 'lucide-react';
+import { LayoutDashboard, Package, FolderOpen, Star, FileText, Share2, LogOut, Home, Menu, X, HelpCircle, Store, Bell, BookOpen, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const LOGO_URL = "https://customer-assets.emergentagent.com/job_8ec93a6a-4f80-4dde-b760-4bc71482fa44/artifacts/4uqt5osn_Staff.zip%20-%201.png";
@@ -13,6 +13,9 @@ const navItems = [
   { path: '/admin/faqs', label: 'FAQs', icon: HelpCircle },
   { path: '/admin/pages', label: 'Pages', icon: FileText },
   { path: '/admin/social-links', label: 'Social Links', icon: Share2 },
+  { path: '/admin/payment-methods', label: 'Payment Methods', icon: CreditCard },
+  { path: '/admin/notification-bar', label: 'Notification Bar', icon: Bell },
+  { path: '/admin/blog', label: 'Blog / Guides', icon: BookOpen },
   { path: '/admin/takeapp', label: 'Take.app', icon: Store },
 ];
 

@@ -15,6 +15,7 @@ export default function Navbar() {
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/about', label: 'About' },
+    { href: '/blog', label: 'Blog' },
     { href: '/terms', label: 'TOS' },
   ];
 
@@ -27,7 +28,6 @@ export default function Navbar() {
       setIsSearchOpen(false);
       setSearchQuery('');
       setIsMenuOpen(false);
-      // Scroll to products section after a short delay
       setTimeout(() => {
         const productsSection = document.querySelector('[data-testid="products-section"]');
         if (productsSection) {

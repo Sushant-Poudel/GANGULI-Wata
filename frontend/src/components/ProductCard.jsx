@@ -12,7 +12,7 @@ export default function ProductCard({ product }) {
   return (
     <Link 
       to={`/product/${product.id}`}
-      className="product-card group relative bg-card rounded-lg overflow-hidden hover:ring-1 hover:ring-gold-500/50 transition-all duration-300"
+      className="product-card group relative bg-card rounded-lg overflow-hidden hover:ring-1 hover:ring-gold-500/50 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-gold-500/10"
       data-testid={`product-card-${product.id}`}
     >
       {/* Image Container - Square */}
@@ -20,7 +20,7 @@ export default function ProductCard({ product }) {
         <img
           src={product.image_url}
           alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           loading="lazy"
         />
         
@@ -48,20 +48,23 @@ export default function ProductCard({ product }) {
             )}
           </div>
         )}
+
+        {/* Hover Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       </div>
 
       {/* Content */}
-      <div className="p-2.5 lg:p-4">
-        <h3 className="font-heading text-sm lg:text-lg font-semibold text-white truncate group-hover:text-gold-500 transition-colors">
+      <div className="p-2 lg:p-3">
+        <h3 className="font-heading text-sm lg:text-base font-semibold text-white truncate group-hover:text-gold-500 transition-colors">
           {product.name}
         </h3>
         
-        <div className="mt-1 lg:mt-2 flex items-baseline gap-1 lg:gap-2">
-          <span className="text-gold-500 font-bold text-sm lg:text-lg">
+        <div className="mt-1 flex items-baseline gap-1 lg:gap-2">
+          <span className="text-gold-500 font-bold text-sm lg:text-base">
             Rs {lowestPrice.toLocaleString()}
           </span>
           {product.variations?.length > 1 && (
-            <span className="text-white/40 text-[10px] lg:text-sm">onwards</span>
+            <span className="text-white/40 text-[10px] lg:text-xs">onwards</span>
           )}
         </div>
       </div>
