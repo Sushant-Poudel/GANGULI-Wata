@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -14,7 +14,6 @@ from datetime import datetime, timezone, timedelta
 import hashlib
 import jwt
 import secrets
-import base64
 import shutil
 
 ROOT_DIR = Path(__file__).parent
@@ -75,6 +74,8 @@ class ProductCreate(BaseModel):
     image_url: str
     category_id: str
     variations: List[ProductVariation] = []
+    tags: List[str] = []  # NEW: Tags like "popular", "sale", "new", "limited"
+    sort_order: int = 0   # NEW: For ordering products
     is_active: bool = True
     is_sold_out: bool = False
 
@@ -86,9 +87,14 @@ class Product(BaseModel):
     image_url: str
     category_id: str
     variations: List[ProductVariation] = []
+    tags: List[str] = []
+    sort_order: int = 0
     is_active: bool = True
     is_sold_out: bool = False
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class ProductOrderUpdate(BaseModel):
+    product_ids: List[str]  # Ordered list of product IDs
 
 class ReviewCreate(BaseModel):
     reviewer_name: str
@@ -132,6 +138,19 @@ class Category(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     slug: str
+
+# NEW: FAQ Item Model
+class FAQItemCreate(BaseModel):
+    question: str
+    answer: str
+    sort_order: int = 0
+
+class FAQItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    question: str
+    answer: str
+    sort_order: int = 0
 
 # ==================== HELPERS ====================
 
@@ -196,26 +215,21 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/upload")
 async def upload_image(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
-    # Validate file type
     allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, WebP, GIF allowed.")
     
-    # Generate unique filename
     file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
     filename = f"{uuid.uuid4()}.{file_ext}"
     file_path = UPLOADS_DIR / filename
     
-    # Save file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # Return the URL path
     return {"url": f"/api/uploads/{filename}"}
 
 @api_router.get("/uploads/{filename}")
 async def get_uploaded_image(filename: str):
-    from fastapi.responses import FileResponse
     file_path = UPLOADS_DIR / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Image not found")
@@ -263,7 +277,8 @@ async def get_products(category_id: Optional[str] = None, active_only: bool = Tr
     if active_only:
         query["is_active"] = True
     
-    products = await db.products.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    # Sort by sort_order ascending, then by created_at descending
+    products = await db.products.find(query, {"_id": 0}).sort([("sort_order", 1), ("created_at", -1)]).to_list(1000)
     return products
 
 @api_router.get("/products/{product_id}", response_model=Product)
@@ -275,7 +290,13 @@ async def get_product(product_id: str):
 
 @api_router.post("/products", response_model=Product)
 async def create_product(product_data: ProductCreate, current_user: dict = Depends(get_current_user)):
-    product = Product(**product_data.model_dump())
+    # Get max sort_order and add 1
+    max_order = await db.products.find_one(sort=[("sort_order", -1)])
+    next_order = (max_order.get("sort_order", 0) + 1) if max_order else 0
+    
+    product_dict = product_data.model_dump()
+    product_dict["sort_order"] = next_order
+    product = Product(**product_dict)
     await db.products.insert_one(product.model_dump())
     return product
 
@@ -296,6 +317,13 @@ async def delete_product(product_id: str, current_user: dict = Depends(get_curre
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
     return {"message": "Product deleted"}
+
+# NEW: Update product order
+@api_router.put("/products/reorder")
+async def reorder_products(order_data: ProductOrderUpdate, current_user: dict = Depends(get_current_user)):
+    for index, product_id in enumerate(order_data.product_ids):
+        await db.products.update_one({"id": product_id}, {"$set": {"sort_order": index}})
+    return {"message": "Products reordered successfully"}
 
 # ==================== REVIEW ROUTES ====================
 
@@ -334,6 +362,46 @@ async def delete_review(review_id: str, current_user: dict = Depends(get_current
         raise HTTPException(status_code=404, detail="Review not found")
     return {"message": "Review deleted"}
 
+# ==================== FAQ ROUTES ====================
+
+@api_router.get("/faqs", response_model=List[FAQItem])
+async def get_faqs():
+    faqs = await db.faqs.find({}, {"_id": 0}).sort("sort_order", 1).to_list(100)
+    return faqs
+
+@api_router.post("/faqs", response_model=FAQItem)
+async def create_faq(faq_data: FAQItemCreate, current_user: dict = Depends(get_current_user)):
+    # Get max sort_order
+    max_order = await db.faqs.find_one(sort=[("sort_order", -1)])
+    next_order = (max_order.get("sort_order", 0) + 1) if max_order else 0
+    
+    faq = FAQItem(question=faq_data.question, answer=faq_data.answer, sort_order=next_order)
+    await db.faqs.insert_one(faq.model_dump())
+    return faq
+
+@api_router.put("/faqs/{faq_id}", response_model=FAQItem)
+async def update_faq(faq_id: str, faq_data: FAQItemCreate, current_user: dict = Depends(get_current_user)):
+    existing = await db.faqs.find_one({"id": faq_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+    
+    await db.faqs.update_one({"id": faq_id}, {"$set": faq_data.model_dump()})
+    updated = await db.faqs.find_one({"id": faq_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/faqs/{faq_id}")
+async def delete_faq(faq_id: str, current_user: dict = Depends(get_current_user)):
+    result = await db.faqs.delete_one({"id": faq_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+    return {"message": "FAQ deleted"}
+
+@api_router.put("/faqs/reorder")
+async def reorder_faqs(faq_ids: List[str], current_user: dict = Depends(get_current_user)):
+    for index, faq_id in enumerate(faq_ids):
+        await db.faqs.update_one({"id": faq_id}, {"$set": {"sort_order": index}})
+    return {"message": "FAQs reordered successfully"}
+
 # ==================== PAGE ROUTES ====================
 
 @api_router.get("/pages/{page_key}")
@@ -342,8 +410,8 @@ async def get_page(page_key: str):
     if not page:
         defaults = {
             "about": {"title": "About Us", "content": "<p>Welcome to GameShop Nepal - Your trusted source for digital products since 2021.</p>"},
-            "contact": {"title": "Contact Us", "content": "<p>Email: support@gameshopnepal.com</p>"},
-            "faq": {"title": "FAQ", "content": "<p>Frequently asked questions will appear here.</p>"}
+            "terms": {"title": "Terms and Conditions", "content": "<p>Terms and conditions content here.</p>"},
+            "faq": {"title": "FAQ", "content": ""}
         }
         return {"page_key": page_key, **defaults.get(page_key, {"title": page_key.title(), "content": ""})}
     return page
@@ -389,7 +457,7 @@ async def delete_social_link(link_id: str, current_user: dict = Depends(get_curr
         raise HTTPException(status_code=404, detail="Social link not found")
     return {"message": "Social link deleted"}
 
-# ==================== CLEAR DATA (Admin Only) ====================
+# ==================== CLEAR DATA ====================
 
 @api_router.post("/clear-products")
 async def clear_products(current_user: dict = Depends(get_current_user)):
@@ -401,7 +469,7 @@ async def clear_products(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/seed")
 async def seed_data():
-    # Seed social links only (no products/categories)
+    # Seed social links
     social_data = [
         {"id": "fb", "platform": "Facebook", "url": "https://facebook.com/gameshopnepal", "icon": "facebook"},
         {"id": "ig", "platform": "Instagram", "url": "https://instagram.com/gameshopnepal", "icon": "instagram"},
@@ -412,7 +480,7 @@ async def seed_data():
     for link in social_data:
         await db.social_links.update_one({"id": link["id"]}, {"$set": link}, upsert=True)
     
-    # Seed some reviews
+    # Seed reviews
     reviews_data = [
         {"id": "rev1", "reviewer_name": "Sujan Thapa", "rating": 5, "comment": "Fast delivery and genuine products. Got my Netflix subscription within minutes!", "review_date": "2025-01-10T10:00:00Z", "created_at": datetime.now(timezone.utc).isoformat()},
         {"id": "rev2", "reviewer_name": "Anisha Sharma", "rating": 5, "comment": "Best prices in Nepal for digital products. Highly recommended!", "review_date": "2025-01-08T14:30:00Z", "created_at": datetime.now(timezone.utc).isoformat()},
@@ -421,6 +489,17 @@ async def seed_data():
     
     for rev in reviews_data:
         await db.reviews.update_one({"id": rev["id"]}, {"$set": rev}, upsert=True)
+    
+    # Seed default FAQs
+    default_faqs = [
+        {"id": "faq1", "question": "How do I place an order?", "answer": "Simply browse our products, select the plan you want, and click 'Order Now'. This will redirect you to WhatsApp where you can complete your order.", "sort_order": 0},
+        {"id": "faq2", "question": "How long does delivery take?", "answer": "Most products are delivered instantly within minutes after payment confirmation.", "sort_order": 1},
+        {"id": "faq3", "question": "What payment methods do you accept?", "answer": "We accept eSewa, Khalti, bank transfer, and other local payment methods.", "sort_order": 2},
+        {"id": "faq4", "question": "Are your products genuine?", "answer": "Yes! All our products are 100% genuine and sourced directly from authorized channels.", "sort_order": 3},
+    ]
+    
+    for faq in default_faqs:
+        await db.faqs.update_one({"id": faq["id"]}, {"$set": faq}, upsert=True)
     
     return {"message": "Data seeded successfully"}
 
