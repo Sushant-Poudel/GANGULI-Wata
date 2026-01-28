@@ -100,4 +100,14 @@ export const seedAPI = {
   clearProducts: () => api.post('/clear-products'),
 };
 
+// Take.app API
+export const takeappAPI = {
+  getStore: () => api.get('/takeapp/store'),
+  getOrders: () => api.get('/takeapp/orders'),
+  getOrderStats: () => api.get('/takeapp/orders/stats'),
+  getInventory: () => api.get('/takeapp/inventory'),
+  updateInventory: (itemId, quantity) => api.put(`/takeapp/inventory/${itemId}`, { quantity }),
+  syncProducts: () => api.post('/takeapp/sync-products'),
+};
+
 export default api;
