@@ -1,15 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
-import { Plus, Pencil, Trash2, X, Upload, Image } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Upload, Image, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { productsAPI, categoriesAPI, uploadAPI } from '@/lib/api';
+
+const AVAILABLE_TAGS = ['Popular', 'Sale', 'New', 'Limited', 'Hot', 'Best Seller'];
 
 const emptyProduct = {
   name: '',
@@ -17,6 +20,8 @@ const emptyProduct = {
   image_url: '',
   category_id: '',
   variations: [],
+  tags: [],
+  sort_order: 0,
   is_active: true,
   is_sold_out: false
 };
@@ -68,6 +73,8 @@ export default function AdminProducts() {
         image_url: product.image_url,
         category_id: product.category_id,
         variations: product.variations || [],
+        tags: product.tags || [],
+        sort_order: product.sort_order || 0,
         is_active: product.is_active,
         is_sold_out: product.is_sold_out
       });
@@ -85,13 +92,11 @@ export default function AdminProducts() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Image size must be less than 5MB');
       return;
     }
 
-    // Show preview
     const reader = new FileReader();
     reader.onload = (e) => setImagePreview(e.target.result);
     reader.readAsDataURL(file);
@@ -133,6 +138,14 @@ export default function AdminProducts() {
       ...formData,
       variations: formData.variations.filter(v => v.id !== varId)
     });
+  };
+
+  const handleToggleTag = (tag) => {
+    if (formData.tags.includes(tag)) {
+      setFormData({ ...formData, tags: formData.tags.filter(t => t !== tag) });
+    } else {
+      setFormData({ ...formData, tags: [...formData.tags, tag] });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -180,6 +193,25 @@ export default function AdminProducts() {
     }
   };
 
+  const handleMoveProduct = async (index, direction) => {
+    const newProducts = [...products];
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    if (newIndex < 0 || newIndex >= products.length) return;
+    
+    [newProducts[index], newProducts[newIndex]] = [newProducts[newIndex], newProducts[index]];
+    setProducts(newProducts);
+    
+    // Update sort orders
+    try {
+      const productIds = newProducts.map(p => p.id);
+      await productsAPI.reorder({ product_ids: productIds });
+    } catch (error) {
+      toast.error('Failed to reorder');
+      fetchData();
+    }
+  };
+
   const getCategoryName = (categoryId) => {
     return categories.find(c => c.id === categoryId)?.name || categoryId;
   };
@@ -189,7 +221,7 @@ export default function AdminProducts() {
       <div className="space-y-4 lg:space-y-6" data-testid="admin-products">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-white/60 text-sm lg:text-base">Manage your product catalog</p>
+          <p className="text-white/60 text-sm lg:text-base">Manage your product catalog. Drag to reorder.</p>
           <Button 
             onClick={() => handleOpenDialog()}
             className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto"
@@ -200,15 +232,14 @@ export default function AdminProducts() {
           </Button>
         </div>
 
-        {/* No Categories Warning */}
         {!isLoading && categories.length === 0 && (
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-yellow-400 text-sm">
-            Please create categories first before adding products. Go to Categories section.
+            Please create categories first before adding products.
           </div>
         )}
 
-        {/* Products - Mobile Cards / Desktop Table */}
-        <div className="lg:hidden space-y-3">
+        {/* Products List */}
+        <div className="space-y-2">
           {isLoading ? (
             <div className="text-center py-8 text-white/40">Loading...</div>
           ) : products.length === 0 ? (
@@ -217,126 +248,80 @@ export default function AdminProducts() {
               <p className="text-white/40">No products yet</p>
             </div>
           ) : (
-            products.map((product) => (
+            products.map((product, index) => (
               <div 
                 key={product.id} 
-                className="bg-card border border-white/10 rounded-lg p-4"
-                data-testid={`product-card-${product.id}`}
+                className="bg-card border border-white/10 rounded-lg p-4 flex items-center gap-4"
+                data-testid={`product-row-${product.id}`}
               >
-                <div className="flex items-start gap-3">
-                  <img 
-                    src={product.image_url} 
-                    alt={product.name}
-                    className="w-16 h-16 rounded object-cover flex-shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
+                {/* Ordering Controls */}
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => handleMoveProduct(index, 'up')}
+                    disabled={index === 0}
+                    className="p-1 text-white/40 hover:text-gold-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleMoveProduct(index, 'down')}
+                    disabled={index === products.length - 1}
+                    className="p-1 text-white/40 hover:text-gold-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <img 
+                  src={product.image_url} 
+                  alt={product.name}
+                  className="w-14 h-14 rounded object-cover flex-shrink-0"
+                />
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-white font-medium truncate">{product.name}</h3>
-                    <p className="text-white/60 text-sm">{getCategoryName(product.category_id)}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-white/40 text-xs">{product.variations?.length || 0} variations</span>
-                      {product.is_sold_out ? (
-                        <span className="text-red-400 text-xs">Sold Out</span>
-                      ) : product.is_active ? (
-                        <span className="text-green-400 text-xs">Active</span>
-                      ) : (
-                        <span className="text-yellow-400 text-xs">Inactive</span>
-                      )}
-                    </div>
+                    {product.tags?.map(tag => (
+                      <Badge key={tag} variant="outline" className="text-[10px] border-gold-500/50 text-gold-500">
+                        {tag}
+                      </Badge>
+                    ))}
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenDialog(product)}
-                      className="text-white/60 hover:text-gold-500 p-2"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(product.id)}
-                      className="text-white/60 hover:text-red-500 p-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <div className="flex items-center gap-3 mt-1 text-sm">
+                    <span className="text-white/60">{getCategoryName(product.category_id)}</span>
+                    <span className="text-white/40">•</span>
+                    <span className="text-white/40">{product.variations?.length || 0} variations</span>
+                    {product.is_sold_out ? (
+                      <span className="text-red-400 text-xs">Sold Out</span>
+                    ) : product.is_active ? (
+                      <span className="text-green-400 text-xs">Active</span>
+                    ) : (
+                      <span className="text-yellow-400 text-xs">Inactive</span>
+                    )}
                   </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenDialog(product)}
+                    className="text-white/60 hover:text-gold-500 p-2"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(product.id)}
+                    className="text-white/60 hover:text-red-500 p-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             ))
           )}
-        </div>
-
-        {/* Desktop Table */}
-        <div className="hidden lg:block bg-card border border-white/10 rounded-lg overflow-hidden">
-          <table className="w-full admin-table">
-            <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left px-6 py-4 text-white/80 font-heading uppercase text-sm">Product</th>
-                <th className="text-left px-6 py-4 text-white/80 font-heading uppercase text-sm">Category</th>
-                <th className="text-left px-6 py-4 text-white/80 font-heading uppercase text-sm">Variations</th>
-                <th className="text-left px-6 py-4 text-white/80 font-heading uppercase text-sm">Status</th>
-                <th className="text-right px-6 py-4 text-white/80 font-heading uppercase text-sm">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-white/40">Loading...</td>
-                </tr>
-              ) : products.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-white/40">No products yet</td>
-                </tr>
-              ) : (
-                products.map((product) => (
-                  <tr key={product.id} className="border-b border-white/5" data-testid={`product-row-${product.id}`}>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        <img 
-                          src={product.image_url} 
-                          alt={product.name}
-                          className="w-12 h-12 rounded object-cover"
-                        />
-                        <span className="text-white font-medium">{product.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-white/60">{getCategoryName(product.category_id)}</td>
-                    <td className="px-6 py-4 text-white/60">{product.variations?.length || 0}</td>
-                    <td className="px-6 py-4">
-                      {product.is_sold_out ? (
-                        <span className="text-red-400 text-sm">Sold Out</span>
-                      ) : product.is_active ? (
-                        <span className="text-green-400 text-sm">Active</span>
-                      ) : (
-                        <span className="text-yellow-400 text-sm">Inactive</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenDialog(product)}
-                        className="text-white/60 hover:text-gold-500"
-                        data-testid={`edit-product-${product.id}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(product.id)}
-                        className="text-white/60 hover:text-red-500"
-                        data-testid={`delete-product-${product.id}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
 
         {/* Product Dialog */}
@@ -363,7 +348,7 @@ export default function AdminProducts() {
                         alt="Preview" 
                         className="w-32 h-32 object-cover rounded-lg mx-auto"
                       />
-                      <p className="text-white/40 text-xs mt-2">Click to change image</p>
+                      <p className="text-white/40 text-xs mt-2">Click to change</p>
                     </div>
                   ) : (
                     <div className="py-4">
@@ -384,7 +369,6 @@ export default function AdminProducts() {
                   accept="image/jpeg,image/png,image/webp,image/gif"
                   onChange={handleImageUpload}
                   className="hidden"
-                  data-testid="product-image-input"
                 />
               </div>
 
@@ -397,7 +381,6 @@ export default function AdminProducts() {
                     className="bg-black border-white/20"
                     placeholder="e.g. Netflix Premium"
                     required
-                    data-testid="product-name-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -406,19 +389,36 @@ export default function AdminProducts() {
                     value={formData.category_id || undefined} 
                     onValueChange={(value) => setFormData({ ...formData, category_id: value })}
                   >
-                    <SelectTrigger className="bg-black border-white/20" data-testid="product-category-select">
+                    <SelectTrigger className="bg-black border-white/20">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.length === 0 ? (
-                        <SelectItem value="none" disabled>No categories - create one first</SelectItem>
-                      ) : (
-                        categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))
-                      )}
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <div className="flex flex-wrap gap-2">
+                  {AVAILABLE_TAGS.map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => handleToggleTag(tag)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                        formData.tags.includes(tag)
+                          ? 'bg-gold-500 text-black'
+                          : 'bg-white/10 text-white/60 hover:bg-white/20'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -427,9 +427,8 @@ export default function AdminProducts() {
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="bg-black border-white/20 min-h-[100px] lg:min-h-[150px]"
-                  placeholder="<p>Product description...</p><ul><li>Feature 1</li></ul>"
-                  data-testid="product-description-input"
+                  className="bg-black border-white/20 min-h-[100px]"
+                  placeholder="<p>Product description...</p>"
                 />
               </div>
 
@@ -437,11 +436,10 @@ export default function AdminProducts() {
               <div className="space-y-3">
                 <Label>Pricing Variations</Label>
                 
-                {/* Existing Variations */}
                 {formData.variations.length > 0 && (
                   <div className="space-y-2">
                     {formData.variations.map((v) => (
-                      <div key={v.id} className="flex items-center gap-2 lg:gap-4 bg-black p-2 lg:p-3 rounded-lg text-sm">
+                      <div key={v.id} className="flex items-center gap-2 bg-black p-2 rounded-lg text-sm">
                         <span className="flex-1 text-white truncate">{v.name}</span>
                         <span className="text-gold-500">Rs {v.price}</span>
                         {v.original_price && (
@@ -461,14 +459,12 @@ export default function AdminProducts() {
                   </div>
                 )}
 
-                {/* Add New Variation */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                   <Input
                     value={newVariation.name}
                     onChange={(e) => setNewVariation({ ...newVariation, name: e.target.value })}
-                    placeholder="Plan name (e.g. 1 Month)"
+                    placeholder="Plan name"
                     className="bg-black border-white/20 col-span-2 lg:col-span-1"
-                    data-testid="variation-name-input"
                   />
                   <Input
                     type="number"
@@ -476,35 +472,31 @@ export default function AdminProducts() {
                     onChange={(e) => setNewVariation({ ...newVariation, price: e.target.value })}
                     placeholder="Price"
                     className="bg-black border-white/20"
-                    data-testid="variation-price-input"
                   />
                   <Input
                     type="number"
                     value={newVariation.original_price}
                     onChange={(e) => setNewVariation({ ...newVariation, original_price: e.target.value })}
-                    placeholder="Original (optional)"
+                    placeholder="Original"
                     className="bg-black border-white/20 hidden lg:block"
-                    data-testid="variation-original-price-input"
                   />
                   <Button
                     type="button"
                     onClick={handleAddVariation}
                     variant="outline"
                     className="border-gold-500 text-gold-500 col-span-2 lg:col-span-1"
-                    data-testid="add-variation-btn"
                   >
-                    Add Variation
+                    Add
                   </Button>
                 </div>
               </div>
 
               {/* Status Toggles */}
-              <div className="flex items-center gap-6 lg:gap-8">
+              <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={formData.is_active}
                     onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                    data-testid="product-active-toggle"
                   />
                   <Label className="text-sm">Active</Label>
                 </div>
@@ -512,26 +504,16 @@ export default function AdminProducts() {
                   <Switch
                     checked={formData.is_sold_out}
                     onCheckedChange={(checked) => setFormData({ ...formData, is_sold_out: checked })}
-                    data-testid="product-soldout-toggle"
                   />
                   <Label className="text-sm">Sold Out</Label>
                 </div>
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setIsDialogOpen(false)}
-                  className="w-full sm:w-auto"
-                >
+                <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto"
-                  data-testid="save-product-btn"
-                >
+                <Button type="submit" className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto">
                   {editingProduct ? 'Update' : 'Create'} Product
                 </Button>
               </div>
