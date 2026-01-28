@@ -157,3 +157,65 @@
 .animate-slideIn {
     animation: slideIn 0.4s ease-out forwards;
 }
+
+/* Reviews Marquee Animation */
+.reviews-marquee-container {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.reviews-marquee-container::before,
+.reviews-marquee-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.reviews-marquee-container::before {
+    left: 0;
+    background: linear-gradient(to right, black, transparent);
+}
+
+.reviews-marquee-container::after {
+    right: 0;
+    background: linear-gradient(to left, black, transparent);
+}
+
+.reviews-marquee {
+    display: flex;
+    gap: 1rem;
+    animation: marquee 30s linear infinite;
+    width: max-content;
+}
+
+.reviews-marquee:hover {
+    animation-play-state: paused;
+}
+
+.review-slide {
+    flex-shrink: 0;
+    width: 300px;
+}
+
+@media (min-width: 768px) {
+    .reviews-marquee {
+        gap: 1.5rem;
+    }
+    .review-slide {
+        width: 350px;
+    }
+}
+
+@keyframes marquee {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(-50%);
+    }
+}
