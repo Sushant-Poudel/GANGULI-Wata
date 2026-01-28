@@ -6,7 +6,7 @@ import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
 import { Button } from '@/components/ui/button';
-import { productsAPI, reviewsAPI, categoriesAPI, seedAPI } from '@/lib/api';
+import { productsAPI, reviewsAPI, categoriesAPI } from '@/lib/api';
 
 const TRUSTPILOT_URL = "https://www.trustpilot.com/review/gameshopnepal.com";
 
@@ -23,9 +23,6 @@ export default function HomePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // First seed data if needed
-        await seedAPI.seed().catch(() => {});
-        
         const [productsRes, reviewsRes, categoriesRes] = await Promise.all([
           productsAPI.getAll(null, true),
           reviewsAPI.getAll(),
