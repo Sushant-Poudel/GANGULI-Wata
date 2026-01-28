@@ -205,7 +205,7 @@ export default function AdminProducts() {
     // Update sort orders
     try {
       const productIds = newProducts.map(p => p.id);
-      await productsAPI.reorder({ product_ids: productIds });
+      await productsAPI.reorder(productIds);
     } catch (error) {
       toast.error('Failed to reorder');
       fetchData();
