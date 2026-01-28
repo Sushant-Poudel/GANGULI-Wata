@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Star, ExternalLink, Search, X } from 'lucide-react';
 import Navbar from '@/components/Navbar';
@@ -18,6 +18,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get('search') || '';
+  const productsSectionRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,6 +44,13 @@ export default function HomePage() {
 
     fetchData();
   }, []);
+
+  // Scroll to products section when search query changes
+  useEffect(() => {
+    if (searchQuery && productsSectionRef.current) {
+      productsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [searchQuery]);
 
   const clearSearch = () => {
     setSearchParams({});
