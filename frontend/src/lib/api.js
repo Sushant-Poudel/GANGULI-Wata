@@ -110,4 +110,10 @@ export const takeappAPI = {
   syncProducts: () => api.post('/takeapp/sync-products'),
 };
 
+// Orders API
+export const ordersAPI = {
+  create: (data) => api.post('/orders/create', data),
+  getAll: () => api.get('/orders'),
+};
+
 export default api;
