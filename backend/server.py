@@ -168,9 +168,9 @@ def create_token(user_id: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-# ==================== FIXED ADMIN CREDENTIALS ====================
-ADMIN_USERNAME = "gsnadmin"
-ADMIN_PASSWORD = "gsnadmin"
+# ==================== ADMIN CREDENTIALS FROM ENV ====================
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "gsnadmin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "gsnadmin")
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
