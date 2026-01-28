@@ -285,6 +285,13 @@ async def get_products(category_id: Optional[str] = None, active_only: bool = Tr
     products = await db.products.find(query, {"_id": 0}).sort([("sort_order", 1), ("created_at", -1)]).to_list(1000)
     return products
 
+# IMPORTANT: Static routes must come BEFORE parameterized routes
+@api_router.put("/products/reorder")
+async def reorder_products(order_data: ProductOrderUpdate, current_user: dict = Depends(get_current_user)):
+    for index, product_id in enumerate(order_data.product_ids):
+        await db.products.update_one({"id": product_id}, {"$set": {"sort_order": index}})
+    return {"message": "Products reordered successfully"}
+
 @api_router.get("/products/{product_id}", response_model=Product)
 async def get_product(product_id: str):
     product = await db.products.find_one({"id": product_id}, {"_id": 0})
@@ -321,13 +328,6 @@ async def delete_product(product_id: str, current_user: dict = Depends(get_curre
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
     return {"message": "Product deleted"}
-
-# NEW: Update product order
-@api_router.put("/products/reorder")
-async def reorder_products(order_data: ProductOrderUpdate, current_user: dict = Depends(get_current_user)):
-    for index, product_id in enumerate(order_data.product_ids):
-        await db.products.update_one({"id": product_id}, {"$set": {"sort_order": index}})
-    return {"message": "Products reordered successfully"}
 
 # ==================== REVIEW ROUTES ====================
 
