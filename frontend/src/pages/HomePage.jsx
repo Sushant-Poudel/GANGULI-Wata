@@ -132,6 +132,25 @@ export default function HomePage() {
             </p>
           </div>
 
+          {/* Search Results Indicator */}
+          {searchQuery && (
+            <div className="flex items-center justify-center gap-2 mb-6 lg:mb-8">
+              <div className="flex items-center gap-2 bg-gold-500/10 border border-gold-500/30 rounded-full px-4 py-2">
+                <Search className="h-4 w-4 text-gold-500" />
+                <span className="text-white text-sm">
+                  Results for "<span className="text-gold-500">{searchQuery}</span>"
+                </span>
+                <button
+                  onClick={clearSearch}
+                  className="ml-1 p-1 hover:bg-white/10 rounded-full transition-colors"
+                  data-testid="clear-search"
+                >
+                  <X className="h-4 w-4 text-white/60 hover:text-white" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Category Filter */}
           <div className="flex flex-wrap items-center justify-center gap-2 lg:gap-3 mb-8 lg:mb-12">
             <button
