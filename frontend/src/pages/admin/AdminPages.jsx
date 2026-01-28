@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { pagesAPI } from '@/lib/api';
 
-const pageKeys = ['about', 'contact', 'faq'];
+const pageKeys = ['about', 'terms'];
 
 export default function AdminPages() {
   const [pages, setPages] = useState({});
@@ -73,10 +73,10 @@ export default function AdminPages() {
   return (
     <AdminLayout title="Pages">
       <div className="space-y-4 lg:space-y-6" data-testid="admin-pages">
-        <p className="text-white/60 text-sm lg:text-base">Edit content for About, Contact, and FAQ pages</p>
+        <p className="text-white/60 text-sm lg:text-base">Edit content for About and Terms & Conditions pages</p>
 
         <Tabs defaultValue="about" className="w-full">
-          <TabsList className="bg-card border border-white/10 w-full lg:w-auto grid grid-cols-3 lg:flex">
+          <TabsList className="bg-card border border-white/10 w-full lg:w-auto grid grid-cols-2 lg:flex">
             {pageKeys.map((key) => (
               <TabsTrigger 
                 key={key} 
@@ -84,7 +84,7 @@ export default function AdminPages() {
                 className="data-[state=active]:bg-gold-500 data-[state=active]:text-black text-xs lg:text-sm"
                 data-testid={`tab-${key}`}
               >
-                {key.charAt(0).toUpperCase() + key.slice(1)}
+                {key === 'terms' ? 'Terms & Conditions' : key.charAt(0).toUpperCase() + key.slice(1)}
               </TabsTrigger>
             ))}
           </TabsList>
