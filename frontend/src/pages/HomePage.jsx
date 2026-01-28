@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Star, ExternalLink } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Star, ExternalLink, Search, X } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
@@ -15,6 +16,8 @@ export default function HomePage() {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchQuery = searchParams.get('search') || '';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,9 +44,18 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  const filteredProducts = selectedCategory
-    ? products.filter(p => p.category_id === selectedCategory)
-    : products;
+  const clearSearch = () => {
+    setSearchParams({});
+  };
+
+  // Filter by category and search query
+  const filteredProducts = products.filter(p => {
+    const matchesCategory = !selectedCategory || p.category_id === selectedCategory;
+    const matchesSearch = !searchQuery || 
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   return (
     <div className="min-h-screen bg-black">
