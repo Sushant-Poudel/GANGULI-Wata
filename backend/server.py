@@ -70,6 +70,12 @@ class ProductVariation(BaseModel):
     original_price: Optional[float] = None
     description: Optional[str] = None
 
+class ProductFormField(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str
+    placeholder: str = ""
+    required: bool = False
+
 class ProductCreate(BaseModel):
     name: str
     description: str
@@ -78,6 +84,7 @@ class ProductCreate(BaseModel):
     variations: List[ProductVariation] = []
     tags: List[str] = []  # NEW: Tags like "popular", "sale", "new", "limited"
     sort_order: int = 0   # NEW: For ordering products
+    custom_fields: List[ProductFormField] = []  # NEW: Custom order form fields
     is_active: bool = True
     is_sold_out: bool = False
 
@@ -91,6 +98,7 @@ class Product(BaseModel):
     variations: List[ProductVariation] = []
     tags: List[str] = []
     sort_order: int = 0
+    custom_fields: List[ProductFormField] = []  # NEW: Custom order form fields
     is_active: bool = True
     is_sold_out: bool = False
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
