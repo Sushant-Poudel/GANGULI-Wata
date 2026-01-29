@@ -41,16 +41,10 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 navbar-blur bg-black/80 border-b border-white/10" data-testid="navbar">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
           <Link to="/" className="flex items-center" data-testid="nav-logo">
-            <img 
-              src={LOGO_URL} 
-              alt="GameShop Nepal" 
-              className="h-10 w-auto"
-            />
+            <img src={LOGO_URL} alt="GameShop Nepal" className="h-10 w-auto" />
           </Link>
 
-          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
             {navLinks.map((link) => (
               <Link
@@ -58,9 +52,7 @@ export default function Navbar() {
                 to={link.href}
                 data-testid={`nav-link-${link.label.toLowerCase()}`}
                 className={`font-heading text-sm uppercase tracking-wider transition-colors ${
-                  isActive(link.href)
-                    ? 'text-gold-500'
-                    : 'text-white/80 hover:text-gold-500'
+                  isActive(link.href) ? 'text-gold-500' : 'text-white/80 hover:text-gold-500'
                 }`}
               >
                 {link.label}
@@ -68,7 +60,6 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Search Button - Desktop */}
           <div className="hidden md:flex items-center">
             {isSearchOpen ? (
               <form onSubmit={handleSearch} className="flex items-center gap-2">
@@ -81,51 +72,27 @@ export default function Navbar() {
                   autoFocus
                   data-testid="search-input"
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsSearchOpen(false)}
-                  className="text-white/60 hover:text-white p-1"
-                >
+                <Button type="button" variant="ghost" size="sm" onClick={() => setIsSearchOpen(false)} className="text-white/60 hover:text-white p-1">
                   <X className="h-4 w-4" />
                 </Button>
               </form>
             ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsSearchOpen(true)}
-                className="text-white/60 hover:text-gold-500"
-                data-testid="search-btn"
-              >
+              <Button variant="ghost" size="sm" onClick={() => setIsSearchOpen(true)} className="text-white/60 hover:text-gold-500" data-testid="search-btn">
                 <Search className="h-5 w-5" />
               </Button>
             )}
           </div>
 
-          {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="text-white/60 hover:text-gold-500 p-2"
-              data-testid="mobile-search-btn"
-            >
+            <Button variant="ghost" size="sm" onClick={() => setIsSearchOpen(!isSearchOpen)} className="text-white/60 hover:text-gold-500 p-2" data-testid="mobile-search-btn">
               <Search className="h-5 w-5" />
             </Button>
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 text-white"
-              data-testid="mobile-menu-toggle"
-            >
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-white" data-testid="mobile-menu-toggle">
               {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Search */}
         {isSearchOpen && (
           <div className="md:hidden py-3 border-t border-white/10">
             <form onSubmit={handleSearch} className="flex items-center gap-2">
@@ -138,18 +105,13 @@ export default function Navbar() {
                 autoFocus
                 data-testid="mobile-search-input"
               />
-              <Button
-                type="submit"
-                size="sm"
-                className="bg-gold-500 hover:bg-gold-600 text-black"
-              >
+              <Button type="submit" size="sm" className="bg-gold-500 hover:bg-gold-600 text-black">
                 <Search className="h-4 w-4" />
               </Button>
             </form>
           </div>
         )}
 
-        {/* Mobile Navigation */}
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t border-white/10" data-testid="mobile-menu">
             <div className="flex flex-col space-y-4">
@@ -160,9 +122,7 @@ export default function Navbar() {
                   data-testid={`mobile-nav-link-${link.label.toLowerCase()}`}
                   onClick={() => setIsMenuOpen(false)}
                   className={`font-heading text-sm uppercase tracking-wider py-2 ${
-                    isActive(link.href)
-                      ? 'text-gold-500'
-                      : 'text-white/80'
+                    isActive(link.href) ? 'text-gold-500' : 'text-white/80'
                   }`}
                 >
                   {link.label}

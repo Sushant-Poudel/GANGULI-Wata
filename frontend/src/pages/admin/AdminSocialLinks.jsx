@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, Facebook, Instagram, MessageCircle, Globe } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,21 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { socialLinksAPI } from '@/lib/api';
 
-const platformOptions = [
-  { value: 'facebook', label: 'Facebook', icon: 'facebook' },
-  { value: 'instagram', label: 'Instagram', icon: 'instagram' },
-  { value: 'tiktok', label: 'TikTok', icon: 'tiktok' },
-  { value: 'whatsapp', label: 'WhatsApp', icon: 'whatsapp' },
-  { value: 'youtube', label: 'YouTube', icon: 'youtube' },
-  { value: 'twitter', label: 'Twitter/X', icon: 'twitter' },
-  { value: 'telegram', label: 'Telegram', icon: 'telegram' },
-  { value: 'discord', label: 'Discord', icon: 'discord' },
-];
+const platforms = ['Facebook', 'Instagram', 'WhatsApp', 'TikTok', 'Discord', 'Twitter', 'YouTube', 'Telegram', 'Other'];
+const emptyLink = { platform: '', url: '', icon: '' };
 
-const emptyLink = {
-  platform: '',
-  url: '',
-  icon: ''
+const getIcon = (platform) => {
+  const p = platform?.toLowerCase();
+  if (p?.includes('facebook')) return <Facebook className="h-5 w-5" />;
+  if (p?.includes('instagram')) return <Instagram className="h-5 w-5" />;
+  if (p?.includes('whatsapp')) return <MessageCircle className="h-5 w-5" />;
+  return <Globe className="h-5 w-5" />;
 };
 
 export default function AdminSocialLinks() {
@@ -34,203 +28,73 @@ export default function AdminSocialLinks() {
   const [formData, setFormData] = useState(emptyLink);
 
   const fetchLinks = async () => {
-    try {
-      const res = await socialLinksAPI.getAll();
-      setLinks(res.data);
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    try { const res = await socialLinksAPI.getAll(); setLinks(res.data); } catch (error) { console.error('Error:', error); } finally { setIsLoading(false); }
   };
 
-  useEffect(() => {
-    fetchLinks();
-  }, []);
+  useEffect(() => { fetchLinks(); }, []);
 
   const handleOpenDialog = (link = null) => {
-    if (link) {
-      setEditingLink(link);
-      setFormData({
-        platform: link.platform,
-        url: link.url,
-        icon: link.icon
-      });
-    } else {
-      setEditingLink(null);
-      setFormData(emptyLink);
-    }
+    if (link) { setEditingLink(link); setFormData({ platform: link.platform, url: link.url, icon: link.icon || '' }); }
+    else { setEditingLink(null); setFormData(emptyLink); }
     setIsDialogOpen(true);
-  };
-
-  const handlePlatformChange = (value) => {
-    const platform = platformOptions.find(p => p.value === value);
-    setFormData({
-      ...formData,
-      platform: platform?.label || value,
-      icon: platform?.icon || value.toLowerCase()
-    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    if (!formData.platform || !formData.url) { toast.error('Platform and URL are required'); return; }
     try {
-      if (editingLink) {
-        await socialLinksAPI.update(editingLink.id, formData);
-        toast.success('Social link updated!');
-      } else {
-        await socialLinksAPI.create(formData);
-        toast.success('Social link created!');
-      }
+      if (editingLink) { await socialLinksAPI.update(editingLink.id, formData); toast.success('Link updated!'); }
+      else { await socialLinksAPI.create(formData); toast.success('Link created!'); }
       setIsDialogOpen(false);
       fetchLinks();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error saving social link');
-    }
+    } catch (error) { toast.error(error.response?.data?.detail || 'Error saving link'); }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this social link?')) return;
-    
-    try {
-      await socialLinksAPI.delete(id);
-      toast.success('Social link deleted!');
-      fetchLinks();
-    } catch (error) {
-      toast.error('Error deleting social link');
-    }
+    if (!window.confirm('Are you sure?')) return;
+    try { await socialLinksAPI.delete(id); toast.success('Link deleted!'); fetchLinks(); } catch (error) { toast.error('Error deleting link'); }
   };
 
   return (
     <AdminLayout title="Social Links">
       <div className="space-y-4 lg:space-y-6" data-testid="admin-social-links">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-white/60 text-sm lg:text-base">Manage your social media links</p>
-          <Button 
-            onClick={() => handleOpenDialog()}
-            className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto"
-            data-testid="add-social-link-btn"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Social Link
-          </Button>
+          <p className="text-white/60 text-sm lg:text-base">Manage social media links displayed in the footer</p>
+          <Button onClick={() => handleOpenDialog()} className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto" data-testid="add-social-link-btn"><Plus className="h-4 w-4 mr-2" />Add Link</Button>
         </div>
 
-        {/* Links Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
-          {isLoading ? (
-            [1, 2, 3].map((i) => (
-              <div key={i} className="h-24 skeleton rounded-lg"></div>
-            ))
-          ) : links.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-white/40">
-              No social links added yet
-            </div>
-          ) : (
-            links.map((link) => (
-              <div
-                key={link.id}
-                className="bg-card border border-white/10 rounded-lg p-4 hover:border-gold-500/30 transition-all"
-                data-testid={`social-link-card-${link.id}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-heading font-semibold text-white uppercase text-sm lg:text-base">
-                    {link.platform}
-                  </h3>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenDialog(link)}
-                      className="text-white/60 hover:text-gold-500 p-2"
-                      data-testid={`edit-social-${link.id}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(link.id)}
-                      className="text-white/60 hover:text-red-500 p-2"
-                      data-testid={`delete-social-${link.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+          {isLoading ? [1, 2, 3].map((i) => <div key={i} className="h-20 skeleton rounded-lg"></div>) : links.length === 0 ? (
+            <div className="col-span-full text-center py-12 bg-card border border-white/10 rounded-lg"><Globe className="h-12 w-12 mx-auto text-white/20 mb-4" /><p className="text-white/40">No social links yet</p></div>
+          ) : links.map((link) => (
+            <div key={link.id} className="bg-card border border-white/10 rounded-lg p-4 hover:border-gold-500/30 transition-all" data-testid={`social-link-${link.id}`}>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gold-500/10 text-gold-500 rounded-lg">{getIcon(link.platform)}</div>
+                <div className="flex-1 min-w-0"><h3 className="font-heading font-semibold text-white">{link.platform}</h3><p className="text-white/40 text-xs truncate">{link.url}</p></div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(link)} className="text-white/60 hover:text-gold-500 p-2"><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(link.id)} className="text-white/60 hover:text-red-500 p-2"><Trash2 className="h-4 w-4" /></Button>
                 </div>
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-white/60 hover:text-gold-500 text-xs lg:text-sm flex items-center gap-2"
-                >
-                  <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                  <span className="truncate">{link.url}</span>
-                </a>
               </div>
-            ))
-          )}
+            </div>
+          ))}
         </div>
 
-        {/* Social Link Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="bg-card border-white/10 text-white max-w-md mx-4">
-            <DialogHeader>
-              <DialogTitle className="font-heading text-xl uppercase">
-                {editingLink ? 'Edit Social Link' : 'Add Social Link'}
-              </DialogTitle>
-            </DialogHeader>
-
+          <DialogContent className="bg-card border-white/10 text-white max-w-md sm:mx-auto">
+            <DialogHeader><DialogTitle className="font-heading text-xl uppercase">{editingLink ? 'Edit Link' : 'Add Link'}</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
               <div className="space-y-2">
                 <Label>Platform</Label>
-                <Select 
-                  value={platformOptions.find(p => p.label === formData.platform)?.value || ''}
-                  onValueChange={handlePlatformChange}
-                >
-                  <SelectTrigger className="bg-black border-white/20" data-testid="social-platform-select">
-                    <SelectValue placeholder="Select platform" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {platformOptions.map((platform) => (
-                      <SelectItem key={platform.value} value={platform.value}>
-                        {platform.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                <Select value={formData.platform || undefined} onValueChange={(value) => setFormData({ ...formData, platform: value })}>
+                  <SelectTrigger className="bg-black border-white/20"><SelectValue placeholder="Select platform" /></SelectTrigger>
+                  <SelectContent>{platforms.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-2">
-                <Label>URL</Label>
-                <Input
-                  value={formData.url}
-                  onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                  className="bg-black border-white/20"
-                  placeholder="https://..."
-                  required
-                  data-testid="social-url-input"
-                />
-              </div>
-
+              <div className="space-y-2"><Label>URL</Label><Input value={formData.url} onChange={(e) => setFormData({ ...formData, url: e.target.value })} className="bg-black border-white/20" placeholder="https://..." required data-testid="social-link-url-input" /></div>
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setIsDialogOpen(false)}
-                  className="w-full sm:w-auto"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto"
-                  data-testid="save-social-link-btn"
-                >
-                  {editingLink ? 'Update' : 'Create'} Link
-                </Button>
+                <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">Cancel</Button>
+                <Button type="submit" className="bg-gold-500 hover:bg-gold-600 text-black w-full sm:w-auto" data-testid="save-social-link-btn">{editingLink ? 'Update' : 'Create'} Link</Button>
               </div>
             </form>
           </DialogContent>

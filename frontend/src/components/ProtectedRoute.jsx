@@ -13,7 +13,6 @@ export default function ProtectedRoute({ children }) {
         setIsLoading(false);
         return;
       }
-
       try {
         await authAPI.getMe();
         setIsAuthenticated(true);
@@ -23,7 +22,6 @@ export default function ProtectedRoute({ children }) {
         setIsLoading(false);
       }
     };
-
     checkAuth();
   }, []);
 

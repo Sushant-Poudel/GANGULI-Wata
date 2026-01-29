@@ -82,9 +82,9 @@ class ProductCreate(BaseModel):
     image_url: str
     category_id: str
     variations: List[ProductVariation] = []
-    tags: List[str] = []  # NEW: Tags like "popular", "sale", "new", "limited"
-    sort_order: int = 0   # NEW: For ordering products
-    custom_fields: List[ProductFormField] = []  # NEW: Custom order form fields
+    tags: List[str] = []
+    sort_order: int = 0
+    custom_fields: List[ProductFormField] = []
     is_active: bool = True
     is_sold_out: bool = False
 
@@ -92,19 +92,20 @@ class Product(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
+    slug: Optional[str] = None
     description: str
     image_url: str
     category_id: str
     variations: List[ProductVariation] = []
     tags: List[str] = []
     sort_order: int = 0
-    custom_fields: List[ProductFormField] = []  # NEW: Custom order form fields
+    custom_fields: List[ProductFormField] = []
     is_active: bool = True
     is_sold_out: bool = False
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class ProductOrderUpdate(BaseModel):
-    product_ids: List[str]  # Ordered list of product IDs
+    product_ids: List[str]
 
 class ReviewCreate(BaseModel):
     reviewer_name: str
@@ -120,6 +121,7 @@ class Review(BaseModel):
     comment: str
     review_date: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    source: Optional[str] = None
 
 class PageContent(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -149,7 +151,6 @@ class Category(BaseModel):
     name: str
     slug: str
 
-# NEW: FAQ Item Model
 class FAQItemCreate(BaseModel):
     question: str
     answer: str
@@ -164,6 +165,27 @@ class FAQItem(BaseModel):
 
 class FAQReorderRequest(BaseModel):
     faq_ids: List[str]
+
+# Promo Code Models
+class PromoCodeCreate(BaseModel):
+    code: str
+    discount_type: str = "percentage"  # "percentage" or "fixed"
+    discount_value: float
+    min_order_amount: float = 0
+    max_uses: Optional[int] = None
+    is_active: bool = True
+
+class PromoCode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    code: str
+    discount_type: str = "percentage"
+    discount_value: float
+    min_order_amount: float = 0
+    max_uses: Optional[int] = None
+    used_count: int = 0
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 # ==================== HELPERS ====================
 
@@ -210,7 +232,7 @@ async def login(credentials: UserLogin):
     if credentials.email == ADMIN_USERNAME and credentials.password == ADMIN_PASSWORD:
         token = create_token("admin-fixed")
         return {
-            "token": token, 
+            "token": token,
             "user": {
                 "id": "admin-fixed",
                 "email": ADMIN_USERNAME,
@@ -231,14 +253,14 @@ async def upload_image(file: UploadFile = File(...), current_user: dict = Depend
     allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, WebP, GIF allowed.")
-    
+
     file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
     filename = f"{uuid.uuid4()}.{file_ext}"
     file_path = UPLOADS_DIR / filename
-    
+
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    
+
     return {"url": f"/api/uploads/{filename}"}
 
 @api_router.get("/uploads/{filename}")
@@ -267,7 +289,7 @@ async def update_category(category_id: str, category_data: CategoryCreate, curre
     existing = await db.categories.find_one({"id": category_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Category not found")
-    
+
     slug = category_data.name.lower().replace(" ", "-").replace("&", "and")
     await db.categories.update_one({"id": category_id}, {"$set": {"name": category_data.name, "slug": slug}})
     updated = await db.categories.find_one({"id": category_id}, {"_id": 0})
@@ -289,12 +311,10 @@ async def get_products(category_id: Optional[str] = None, active_only: bool = Tr
         query["category_id"] = category_id
     if active_only:
         query["is_active"] = True
-    
-    # Sort by sort_order ascending, then by created_at descending
+
     products = await db.products.find(query, {"_id": 0}).sort([("sort_order", 1), ("created_at", -1)]).to_list(1000)
     return products
 
-# IMPORTANT: Static routes must come BEFORE parameterized routes
 @api_router.put("/products/reorder")
 async def reorder_products(order_data: ProductOrderUpdate, current_user: dict = Depends(get_current_user)):
     for index, product_id in enumerate(order_data.product_ids):
@@ -303,19 +323,36 @@ async def reorder_products(order_data: ProductOrderUpdate, current_user: dict = 
 
 @api_router.get("/products/{product_id}", response_model=Product)
 async def get_product(product_id: str):
-    product = await db.products.find_one({"id": product_id}, {"_id": 0})
+    # First try to find by slug
+    product = await db.products.find_one({"slug": product_id}, {"_id": 0})
+    if not product:
+        # Then try by ID
+        product = await db.products.find_one({"id": product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 
+def generate_slug(name: str) -> str:
+    """Generate a URL-friendly slug from product name"""
+    import re
+    # Convert to lowercase
+    slug = name.lower()
+    # Replace spaces and special characters with hyphens
+    slug = re.sub(r'[^a-z0-9]+', '-', slug)
+    # Remove leading/trailing hyphens
+    slug = slug.strip('-')
+    # Remove multiple consecutive hyphens
+    slug = re.sub(r'-+', '-', slug)
+    return slug
+
 @api_router.post("/products", response_model=Product)
 async def create_product(product_data: ProductCreate, current_user: dict = Depends(get_current_user)):
-    # Get max sort_order and add 1
     max_order = await db.products.find_one(sort=[("sort_order", -1)])
     next_order = (max_order.get("sort_order", 0) + 1) if max_order else 0
-    
+
     product_dict = product_data.model_dump()
     product_dict["sort_order"] = next_order
+    product_dict["slug"] = generate_slug(product_data.name)
     product = Product(**product_dict)
     await db.products.insert_one(product.model_dump())
     return product
@@ -325,8 +362,9 @@ async def update_product(product_id: str, product_data: ProductCreate, current_u
     existing = await db.products.find_one({"id": product_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Product not found")
-    
+
     update_data = product_data.model_dump()
+    update_data["slug"] = generate_slug(product_data.name)
     await db.products.update_one({"id": product_id}, {"$set": update_data})
     updated = await db.products.find_one({"id": product_id}, {"_id": 0})
     return updated
@@ -361,7 +399,7 @@ async def update_review(review_id: str, review_data: ReviewCreate, current_user:
     existing = await db.reviews.find_one({"id": review_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Review not found")
-    
+
     update_data = review_data.model_dump()
     update_data["review_date"] = review_data.review_date or existing.get("review_date")
     await db.reviews.update_one({"id": review_id}, {"$set": update_data})
@@ -375,7 +413,170 @@ async def delete_review(review_id: str, current_user: dict = Depends(get_current
         raise HTTPException(status_code=404, detail="Review not found")
     return {"message": "Review deleted"}
 
-# ==================== FAQ ROUTES ====================
+# ==================== TRUSTPILOT SYNC ====================
+
+TRUSTPILOT_DOMAIN = "gameshopnepal.com"
+TRUSTPILOT_API_KEY = os.environ.get("TRUSTPILOT_API_KEY", "")
+
+async def get_trustpilot_business_unit_id():
+    """Get the business unit ID from Trustpilot using the domain"""
+    cached = await db.trustpilot_config.find_one({"key": "business_unit_id"})
+    if cached and cached.get("value"):
+        return cached["value"]
+    
+    # Try to find business unit ID via API or scraping
+    async with httpx.AsyncClient() as client:
+        try:
+            # First try the public find endpoint (may need API key)
+            if TRUSTPILOT_API_KEY:
+                response = await client.get(
+                    f"https://api.trustpilot.com/v1/business-units/find?name={TRUSTPILOT_DOMAIN}",
+                    headers={"apikey": TRUSTPILOT_API_KEY},
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    buid = data.get("id")
+                    if buid:
+                        await db.trustpilot_config.update_one(
+                            {"key": "business_unit_id"},
+                            {"$set": {"key": "business_unit_id", "value": buid}},
+                            upsert=True
+                        )
+                        return buid
+        except Exception as e:
+            logger.error(f"Error getting business unit ID: {e}")
+    
+    return None
+
+async def fetch_trustpilot_reviews_from_page():
+    """Scrape reviews from Trustpilot page as fallback"""
+    reviews = []
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"https://www.trustpilot.com/review/{TRUSTPILOT_DOMAIN}",
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                },
+                timeout=15.0
+            )
+            if response.status_code == 200:
+                import re
+                import json
+                
+                # Try to find JSON-LD data in the page
+                html = response.text
+                
+                # Look for review data in script tags
+                json_ld_pattern = r'<script type="application/ld\+json"[^>]*>(.*?)</script>'
+                matches = re.findall(json_ld_pattern, html, re.DOTALL)
+                
+                for match in matches:
+                    try:
+                        data = json.loads(match)
+                        if isinstance(data, dict) and data.get("@type") == "LocalBusiness":
+                            if "review" in data:
+                                for review in data["review"]:
+                                    reviews.append({
+                                        "reviewer_name": review.get("author", {}).get("name", "Anonymous"),
+                                        "rating": int(review.get("reviewRating", {}).get("ratingValue", 5)),
+                                        "comment": review.get("reviewBody", ""),
+                                        "review_date": review.get("datePublished", datetime.now(timezone.utc).isoformat())
+                                    })
+                    except json.JSONDecodeError:
+                        continue
+                
+                # Also try to parse from __NEXT_DATA__
+                next_data_pattern = r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>'
+                next_matches = re.findall(next_data_pattern, html, re.DOTALL)
+                
+                for match in next_matches:
+                    try:
+                        data = json.loads(match)
+                        props = data.get("props", {}).get("pageProps", {})
+                        review_list = props.get("reviews", [])
+                        
+                        for review in review_list:
+                            consumer = review.get("consumer", {})
+                            # Get the published date from dates object
+                            dates = review.get("dates", {})
+                            published_date = dates.get("publishedDate") or dates.get("experiencedDate")
+                            
+                            reviews.append({
+                                "reviewer_name": consumer.get("displayName", "Anonymous"),
+                                "rating": review.get("rating", 5),
+                                "comment": review.get("text", review.get("title", "")),
+                                "review_date": published_date or datetime.now(timezone.utc).isoformat()
+                            })
+                    except json.JSONDecodeError:
+                        continue
+                        
+        except Exception as e:
+            logger.error(f"Error scraping Trustpilot: {e}")
+    
+    return reviews
+
+@api_router.post("/reviews/sync-trustpilot")
+async def sync_trustpilot_reviews(current_user: dict = Depends(get_current_user)):
+    """Sync reviews from Trustpilot to the database"""
+    synced_count = 0
+    
+    try:
+        # Try scraping the Trustpilot page
+        trustpilot_reviews = await fetch_trustpilot_reviews_from_page()
+        
+        for tp_review in trustpilot_reviews:
+            # Check if this review already exists (by reviewer name and comment)
+            existing = await db.reviews.find_one({
+                "reviewer_name": tp_review["reviewer_name"],
+                "comment": tp_review["comment"],
+                "source": "trustpilot"
+            })
+            
+            if not existing:
+                review = {
+                    "id": f"tp-{str(uuid.uuid4())[:8]}",
+                    "reviewer_name": tp_review["reviewer_name"],
+                    "rating": tp_review["rating"],
+                    "comment": tp_review["comment"],
+                    "review_date": tp_review["review_date"],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "trustpilot"
+                }
+                await db.reviews.insert_one(review)
+                synced_count += 1
+        
+        # Update last sync time
+        await db.trustpilot_config.update_one(
+            {"key": "last_sync"},
+            {"$set": {"key": "last_sync", "value": datetime.now(timezone.utc).isoformat()}},
+            upsert=True
+        )
+        
+        return {
+            "success": True,
+            "synced_count": synced_count,
+            "total_found": len(trustpilot_reviews),
+            "message": f"Synced {synced_count} new reviews from Trustpilot"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error syncing Trustpilot reviews: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to sync reviews: {str(e)}")
+
+@api_router.get("/reviews/trustpilot-status")
+async def get_trustpilot_status(current_user: dict = Depends(get_current_user)):
+    """Get Trustpilot sync status"""
+    last_sync = await db.trustpilot_config.find_one({"key": "last_sync"})
+    tp_review_count = await db.reviews.count_documents({"source": "trustpilot"})
+    
+    return {
+        "domain": TRUSTPILOT_DOMAIN,
+        "last_sync": last_sync.get("value") if last_sync else None,
+        "trustpilot_reviews_count": tp_review_count,
+        "api_key_configured": bool(TRUSTPILOT_API_KEY)
+    }
 
 @api_router.get("/faqs", response_model=List[FAQItem])
 async def get_faqs():
@@ -384,10 +585,9 @@ async def get_faqs():
 
 @api_router.post("/faqs", response_model=FAQItem)
 async def create_faq(faq_data: FAQItemCreate, current_user: dict = Depends(get_current_user)):
-    # Get max sort_order
     max_order = await db.faqs.find_one(sort=[("sort_order", -1)])
     next_order = (max_order.get("sort_order", 0) + 1) if max_order else 0
-    
+
     faq = FAQItem(question=faq_data.question, answer=faq_data.answer, sort_order=next_order)
     await db.faqs.insert_one(faq.model_dump())
     return faq
@@ -404,7 +604,7 @@ async def update_faq(faq_id: str, faq_data: FAQItemCreate, current_user: dict = 
     existing = await db.faqs.find_one({"id": faq_id})
     if not existing:
         raise HTTPException(status_code=404, detail="FAQ not found")
-    
+
     await db.faqs.update_one({"id": faq_id}, {"$set": faq_data.model_dump()})
     updated = await db.faqs.find_one({"id": faq_id}, {"_id": 0})
     return updated
@@ -459,7 +659,7 @@ async def update_social_link(link_id: str, link_data: SocialLinkCreate, current_
     existing = await db.social_links.find_one({"id": link_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Social link not found")
-    
+
     await db.social_links.update_one({"id": link_id}, {"$set": link_data.model_dump()})
     updated = await db.social_links.find_one({"id": link_id}, {"_id": 0})
     return updated
@@ -483,38 +683,35 @@ async def clear_products(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/seed")
 async def seed_data():
-    # Seed social links
     social_data = [
         {"id": "fb", "platform": "Facebook", "url": "https://facebook.com/gameshopnepal", "icon": "facebook"},
         {"id": "ig", "platform": "Instagram", "url": "https://instagram.com/gameshopnepal", "icon": "instagram"},
         {"id": "tt", "platform": "TikTok", "url": "https://tiktok.com/@gameshopnepal", "icon": "tiktok"},
         {"id": "wa", "platform": "WhatsApp", "url": "https://wa.me/9779743488871", "icon": "whatsapp"},
     ]
-    
+
     for link in social_data:
         await db.social_links.update_one({"id": link["id"]}, {"$set": link}, upsert=True)
-    
-    # Seed reviews
+
     reviews_data = [
         {"id": "rev1", "reviewer_name": "Sujan Thapa", "rating": 5, "comment": "Fast delivery and genuine products. Got my Netflix subscription within minutes!", "review_date": "2025-01-10T10:00:00Z", "created_at": datetime.now(timezone.utc).isoformat()},
         {"id": "rev2", "reviewer_name": "Anisha Sharma", "rating": 5, "comment": "Best prices in Nepal for digital products. Highly recommended!", "review_date": "2025-01-08T14:30:00Z", "created_at": datetime.now(timezone.utc).isoformat()},
         {"id": "rev3", "reviewer_name": "Rohan KC", "rating": 5, "comment": "Bought PUBG UC, instant delivery. Will buy again!", "review_date": "2025-01-05T09:15:00Z", "created_at": datetime.now(timezone.utc).isoformat()},
     ]
-    
+
     for rev in reviews_data:
         await db.reviews.update_one({"id": rev["id"]}, {"$set": rev}, upsert=True)
-    
-    # Seed default FAQs
+
     default_faqs = [
         {"id": "faq1", "question": "How do I place an order?", "answer": "Simply browse our products, select the plan you want, and click 'Order Now'. This will redirect you to WhatsApp where you can complete your order.", "sort_order": 0},
         {"id": "faq2", "question": "How long does delivery take?", "answer": "Most products are delivered instantly within minutes after payment confirmation.", "sort_order": 1},
         {"id": "faq3", "question": "What payment methods do you accept?", "answer": "We accept eSewa, Khalti, bank transfer, and other local payment methods.", "sort_order": 2},
         {"id": "faq4", "question": "Are your products genuine?", "answer": "Yes! All our products are 100% genuine and sourced directly from authorized channels.", "sort_order": 3},
     ]
-    
+
     for faq in default_faqs:
         await db.faqs.update_one({"id": faq["id"]}, {"$set": faq}, upsert=True)
-    
+
     return {"message": "Data seeded successfully"}
 
 # ==================== TAKE.APP INTEGRATION ====================
@@ -522,38 +719,11 @@ async def seed_data():
 TAKEAPP_API_KEY = os.environ.get("TAKEAPP_API_KEY", "")
 TAKEAPP_BASE_URL = "https://take.app/api/platform"
 
-class TakeAppOrder(BaseModel):
-    id: str
-    number: int
-    status: str
-    paymentStatus: str
-    fulfillmentStatus: str
-    customerName: str
-    customerPhone: str
-    customerEmail: Optional[str] = None
-    totalAmount: int
-    totalItemsQuantity: int
-    items: List[dict] = []
-    createdAt: str
-    updatedAt: str
-
-class TakeAppInventoryItem(BaseModel):
-    item_id: str
-    item_name: str
-    quantity: int
-    price: int
-    original_price: Optional[int] = None
-
-class TakeAppSyncResult(BaseModel):
-    synced_count: int
-    message: str
-
 @api_router.get("/takeapp/store")
 async def get_takeapp_store(current_user: dict = Depends(get_current_user)):
-    """Get Take.app store information"""
     if not TAKEAPP_API_KEY:
         raise HTTPException(status_code=400, detail="Take.app API key not configured")
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get(f"{TAKEAPP_BASE_URL}/me?api_key={TAKEAPP_API_KEY}")
         if response.status_code != 200:
@@ -562,17 +732,15 @@ async def get_takeapp_store(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/takeapp/orders")
 async def get_takeapp_orders(current_user: dict = Depends(get_current_user)):
-    """Get orders from Take.app"""
     if not TAKEAPP_API_KEY:
         raise HTTPException(status_code=400, detail="Take.app API key not configured")
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get(f"{TAKEAPP_BASE_URL}/orders?api_key={TAKEAPP_API_KEY}")
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch orders")
-        
+
         orders = response.json()
-        # Store orders in local DB for tracking
         for order in orders:
             await db.takeapp_orders.update_one(
                 {"id": order["id"]},
@@ -583,35 +751,19 @@ async def get_takeapp_orders(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/takeapp/inventory")
 async def get_takeapp_inventory(current_user: dict = Depends(get_current_user)):
-    """Get inventory from Take.app"""
     if not TAKEAPP_API_KEY:
         raise HTTPException(status_code=400, detail="Take.app API key not configured")
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get(f"{TAKEAPP_BASE_URL}/inventory?api_key={TAKEAPP_API_KEY}")
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch inventory")
         return response.json()
 
-@api_router.put("/takeapp/inventory/{item_id}")
-async def update_takeapp_inventory(item_id: str, quantity: int = Body(..., embed=True), current_user: dict = Depends(get_current_user)):
-    """Update inventory quantity on Take.app"""
-    if not TAKEAPP_API_KEY:
-        raise HTTPException(status_code=400, detail="Take.app API key not configured")
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.put(
-            f"{TAKEAPP_BASE_URL}/inventory/{item_id}?api_key={TAKEAPP_API_KEY}",
-            json={"quantity": quantity}
-        )
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail="Failed to update inventory")
-        return {"message": "Inventory updated", "item_id": item_id, "quantity": quantity}
-
 # Order creation models
 class OrderItem(BaseModel):
     name: str
-    price: float  # in rupees (NOT paisa)
+    price: float
     quantity: int = 1
     variation: Optional[str] = None
 
@@ -620,24 +772,15 @@ class CreateOrderRequest(BaseModel):
     customer_phone: str
     customer_email: Optional[str] = None
     items: List[OrderItem]
-    total_amount: float  # in rupees (NOT paisa)
+    total_amount: float
     remark: Optional[str] = None
 
-class PaymentScreenshotRequest(BaseModel):
-    order_id: str
-    screenshot_url: str
-
-# Store alias for Take.app
 TAKEAPP_STORE_ALIAS = "gsn"
 
 @api_router.post("/orders/create")
 async def create_order(order_data: CreateOrderRequest):
-    """Create an order on Take.app and return payment URL"""
-    
-    # Generate local order ID
     order_id = str(uuid.uuid4())
-    
-    # Format phone number for Take.app (needs country code 977 for Nepal)
+
     def format_phone_number(phone):
         phone = ''.join(filter(str.isdigit, phone))
         if phone.startswith('0'):
@@ -645,63 +788,68 @@ async def create_order(order_data: CreateOrderRequest):
         if not phone.startswith('977') and len(phone) == 10:
             phone = '977' + phone
         return phone
-    
+
     formatted_phone = format_phone_number(order_data.customer_phone)
-    
-    # Build remark with item details
+
     items_text = ", ".join([f"{item.quantity}x {item.name}" + (f" ({item.variation})" if item.variation else "") for item in order_data.items])
     full_remark = f"Items: {items_text}"
     if order_data.remark:
         full_remark += f"\nNote: {order_data.remark}"
-    
-    # Total amount in rupees - Take.app expects rupees as string
+
     total_amount_rupees = str(int(order_data.total_amount))
-    
-    # Create order on Take.app
+
     takeapp_order_id = None
     takeapp_order_number = None
     payment_url = None
-    
+
+    # Try Take.app integration if API key is configured
     if TAKEAPP_API_KEY:
         try:
             async with httpx.AsyncClient() as client:
                 takeapp_payload = {
                     "customer_name": order_data.customer_name,
                     "customer_phone": formatted_phone,
-                    "customer_email": order_data.customer_email or "",
-                    "total_amount": total_amount_rupees,  # in rupees as string
+                    "total_amount": total_amount_rupees,
                     "remark": full_remark
                 }
-                
+                # Only include email if provided
+                if order_data.customer_email:
+                    takeapp_payload["customer_email"] = order_data.customer_email
+
                 logger.info(f"Creating Take.app order: {takeapp_payload}")
-                
+
                 response = await client.post(
                     f"{TAKEAPP_BASE_URL}/orders?api_key={TAKEAPP_API_KEY}",
                     json=takeapp_payload,
                     timeout=15.0
                 )
-                
+
                 logger.info(f"Take.app response: {response.status_code} - {response.text}")
-                
+
                 if response.status_code in [200, 201]:
                     takeapp_result = response.json()
                     takeapp_order_id = takeapp_result.get("id")
                     takeapp_order_number = takeapp_result.get("number")
-                    
-                    # Build payment URL: take.app/gsn/orders/{order_id}/pay
                     payment_url = f"https://take.app/{TAKEAPP_STORE_ALIAS}/orders/{takeapp_order_id}/pay"
                 else:
-                    logger.error(f"Take.app order creation failed: {response.status_code} - {response.text}")
-                    raise HTTPException(status_code=500, detail="Failed to create order on Take.app")
-        except HTTPException:
-            raise
+                    logger.warning(f"Take.app order creation failed: {response.status_code} - {response.text}")
+                    # Continue without Take.app - order will be saved locally
         except Exception as e:
-            logger.error(f"Failed to create order on Take.app: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to create order: {str(e)}")
-    else:
-        raise HTTPException(status_code=500, detail="Take.app API key not configured")
+            logger.warning(f"Take.app integration failed, saving order locally: {e}")
+            # Continue without Take.app - order will be saved locally
+
+    # Generate WhatsApp contact URL as fallback when Take.app is not configured
+    whatsapp_number = "9779743488871"  # GameShop Nepal WhatsApp
     
-    # Save order locally
+    # Use WhatsApp URL as fallback payment method if Take.app is not available
+    if not payment_url:
+        import urllib.parse
+        whatsapp_message = f"Hi! I'd like to place an order:\n\n{items_text}\n\nTotal: Rs {total_amount_rupees}\n\nName: {order_data.customer_name}\nPhone: {order_data.customer_phone}"
+        if order_data.remark:
+            whatsapp_message += f"\nNote: {order_data.remark}"
+        encoded_message = urllib.parse.quote(whatsapp_message)
+        payment_url = f"https://wa.me/{whatsapp_number}?text={encoded_message}"
+
     local_order = {
         "id": order_id,
         "takeapp_order_id": takeapp_order_id,
@@ -718,196 +866,28 @@ async def create_order(order_data: CreateOrderRequest):
         "payment_url": payment_url,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    
+
     await db.orders.insert_one(local_order)
-    
+
+    message = "Order created successfully"
+    if takeapp_order_id:
+        message += " on Take.app"
+    else:
+        message += ". Contact us via WhatsApp to complete payment."
+
     return {
         "success": True,
         "order_id": order_id,
         "takeapp_order_id": takeapp_order_id,
         "takeapp_order_number": takeapp_order_number,
         "payment_url": payment_url,
-        "message": "Order created successfully on Take.app"
-    }
-
-@api_router.post("/orders/{order_id}/payment-screenshot")
-async def upload_payment_screenshot(order_id: str, screenshot_url: str = Body(..., embed=True)):
-    """Upload payment screenshot for an order"""
-    
-    # Find the local order
-    order = await db.orders.find_one({"id": order_id})
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Update local order with screenshot
-    await db.orders.update_one(
-        {"id": order_id},
-        {"$set": {
-            "payment_screenshot": screenshot_url,
-            "status": "confirming_payment"
-        }}
-    )
-    
-    return {
-        "success": True,
-        "message": "Payment screenshot uploaded successfully",
-        "order_id": order_id
+        "message": message
     }
 
 @api_router.get("/orders")
 async def get_local_orders(current_user: dict = Depends(get_current_user)):
-    """Get all local orders"""
     orders = await db.orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return orders
-
-@api_router.post("/takeapp/sync-products")
-async def sync_takeapp_products(current_user: dict = Depends(get_current_user)):
-    """Sync products from Take.app inventory to local database"""
-    if not TAKEAPP_API_KEY:
-        raise HTTPException(status_code=400, detail="Take.app API key not configured")
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.get(f"{TAKEAPP_BASE_URL}/inventory?api_key={TAKEAPP_API_KEY}")
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail="Failed to fetch inventory")
-        
-        inventory = response.json()
-        synced = 0
-        
-        for item in inventory:
-            # Check if product already exists by Take.app ID
-            existing = await db.products.find_one({"takeapp_id": item["item_id"]})
-            
-            if not existing:
-                # Create new product from Take.app item
-                # Get existing category or create a default one
-                default_cat = await db.categories.find_one({"slug": "takeapp-imports"})
-                if not default_cat:
-                    default_cat = {
-                        "id": str(uuid.uuid4()),
-                        "name": "Take.app Imports",
-                        "slug": "takeapp-imports",
-                        "image_url": ""
-                    }
-                    await db.categories.insert_one(default_cat)
-                
-                # Get max sort_order
-                max_order = await db.products.find_one(sort=[("sort_order", -1)])
-                next_order = (max_order.get("sort_order", 0) + 1) if max_order else 0
-                
-                new_product = {
-                    "id": str(uuid.uuid4()),
-                    "takeapp_id": item["item_id"],
-                    "name": item["item_name"],
-                    "slug": item["item_name"].lower().replace(" ", "-"),
-                    "description": f"<p>Imported from Take.app</p>",
-                    "image_url": "",
-                    "category_id": default_cat["id"],
-                    "variations": [{
-                        "id": f"var-{uuid.uuid4()}",
-                        "name": "Default",
-                        "price": item["price"] / 100,  # Convert from paisa to rupees
-                        "original_price": item.get("original_price", item["price"]) / 100 if item.get("original_price") else None
-                    }],
-                    "tags": ["Take.app"],
-                    "sort_order": next_order,
-                    "is_active": True,
-                    "is_sold_out": item["quantity"] == 0,
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }
-                await db.products.insert_one(new_product)
-                synced += 1
-            else:
-                # Update existing product's sold out status based on inventory
-                await db.products.update_one(
-                    {"takeapp_id": item["item_id"]},
-                    {"$set": {"is_sold_out": item["quantity"] == 0}}
-                )
-        
-        return {"synced_count": synced, "message": f"Synced {synced} new products from Take.app"}
-
-@api_router.get("/takeapp/orders/stats")
-async def get_takeapp_order_stats(current_user: dict = Depends(get_current_user)):
-    """Get order statistics from Take.app"""
-    if not TAKEAPP_API_KEY:
-        raise HTTPException(status_code=400, detail="Take.app API key not configured")
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.get(f"{TAKEAPP_BASE_URL}/orders?api_key={TAKEAPP_API_KEY}")
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail="Failed to fetch orders")
-        
-        orders = response.json()
-        
-        # Calculate statistics
-        total_orders = len(orders)
-        pending_orders = len([o for o in orders if o["status"] == "ORDER_STATUS_PENDING"])
-        completed_orders = len([o for o in orders if o["status"] == "ORDER_STATUS_COMPLETED"])
-        cancelled_orders = len([o for o in orders if o["status"] == "ORDER_STATUS_CANCELLED"])
-        
-        total_revenue = sum(o["totalAmount"] for o in orders if o["status"] == "ORDER_STATUS_COMPLETED") / 100
-        
-        # Get orders from last 24 hours
-        now = datetime.now(timezone.utc)
-        recent_orders = [o for o in orders if datetime.fromisoformat(o["createdAt"].replace("Z", "+00:00")) > now - timedelta(hours=24)]
-        
-        return {
-            "total_orders": total_orders,
-            "pending_orders": pending_orders,
-            "completed_orders": completed_orders,
-            "cancelled_orders": cancelled_orders,
-            "total_revenue": total_revenue,
-            "orders_last_24h": len(recent_orders)
-        }
-
-# ==================== CONTACT LINKS ====================
-
-class ContactLink(BaseModel):
-    id: Optional[str] = None
-    platform: str  # whatsapp, messenger, email, telegram, viber, etc.
-    label: str
-    value: str  # phone number, email, or link
-    icon: Optional[str] = None
-    is_active: bool = True
-    sort_order: int = 0
-
-@api_router.get("/contacts")
-async def get_contacts():
-    """Get all active contact links"""
-    contacts = await db.contacts.find({"is_active": True}).sort("sort_order", 1).to_list(100)
-    for c in contacts:
-        c.pop("_id", None)
-    return contacts
-
-@api_router.get("/contacts/all")
-async def get_all_contacts(current_user: dict = Depends(get_current_user)):
-    """Get all contact links (admin)"""
-    contacts = await db.contacts.find().sort("sort_order", 1).to_list(100)
-    for c in contacts:
-        c.pop("_id", None)
-    return contacts
-
-@api_router.post("/contacts")
-async def create_contact(contact: ContactLink, current_user: dict = Depends(get_current_user)):
-    """Create a new contact link"""
-    contact_dict = contact.model_dump()
-    contact_dict["id"] = str(uuid.uuid4())
-    await db.contacts.insert_one(contact_dict)
-    return contact_dict
-
-@api_router.put("/contacts/{contact_id}")
-async def update_contact(contact_id: str, contact: ContactLink, current_user: dict = Depends(get_current_user)):
-    """Update a contact link"""
-    contact_dict = contact.model_dump()
-    contact_dict["id"] = contact_id
-    await db.contacts.update_one({"id": contact_id}, {"$set": contact_dict})
-    return contact_dict
-
-@api_router.delete("/contacts/{contact_id}")
-async def delete_contact(contact_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete a contact link"""
-    await db.contacts.delete_one({"id": contact_id})
-    return {"message": "Contact deleted"}
 
 # ==================== PAYMENT METHODS ====================
 
@@ -920,7 +900,6 @@ class PaymentMethod(BaseModel):
 
 @api_router.get("/payment-methods")
 async def get_payment_methods():
-    """Get all active payment methods"""
     methods = await db.payment_methods.find({"is_active": True}).sort("sort_order", 1).to_list(100)
     for m in methods:
         m.pop("_id", None)
@@ -928,7 +907,6 @@ async def get_payment_methods():
 
 @api_router.get("/payment-methods/all")
 async def get_all_payment_methods(current_user: dict = Depends(get_current_user)):
-    """Get all payment methods (admin)"""
     methods = await db.payment_methods.find().sort("sort_order", 1).to_list(100)
     for m in methods:
         m.pop("_id", None)
@@ -936,15 +914,14 @@ async def get_all_payment_methods(current_user: dict = Depends(get_current_user)
 
 @api_router.post("/payment-methods")
 async def create_payment_method(method: PaymentMethod, current_user: dict = Depends(get_current_user)):
-    """Create a new payment method"""
     method_dict = method.model_dump()
     method_dict["id"] = str(uuid.uuid4())
     await db.payment_methods.insert_one(method_dict)
+    method_dict.pop("_id", None)
     return method_dict
 
 @api_router.put("/payment-methods/{method_id}")
 async def update_payment_method(method_id: str, method: PaymentMethod, current_user: dict = Depends(get_current_user)):
-    """Update a payment method"""
     method_dict = method.model_dump()
     method_dict["id"] = method_id
     await db.payment_methods.update_one({"id": method_id}, {"$set": method_dict})
@@ -952,7 +929,6 @@ async def update_payment_method(method_id: str, method: PaymentMethod, current_u
 
 @api_router.delete("/payment-methods/{method_id}")
 async def delete_payment_method(method_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete a payment method"""
     await db.payment_methods.delete_one({"id": method_id})
     return {"message": "Payment method deleted"}
 
@@ -968,7 +944,6 @@ class NotificationBar(BaseModel):
 
 @api_router.get("/notification-bar")
 async def get_notification_bar():
-    """Get active notification bar"""
     notification = await db.notification_bar.find_one({"is_active": True})
     if notification:
         notification.pop("_id", None)
@@ -976,7 +951,6 @@ async def get_notification_bar():
 
 @api_router.put("/notification-bar")
 async def update_notification_bar(notification: NotificationBar, current_user: dict = Depends(get_current_user)):
-    """Update notification bar"""
     notification_dict = notification.model_dump()
     notification_dict["id"] = "main"
     await db.notification_bar.update_one({"id": "main"}, {"$set": notification_dict}, upsert=True)
@@ -997,16 +971,13 @@ class BlogPost(BaseModel):
 
 @api_router.get("/blog")
 async def get_blog_posts():
-    """Get all published blog posts"""
     posts = await db.blog_posts.find({"is_published": True}).sort("created_at", -1).to_list(100)
     for p in posts:
         p.pop("_id", None)
     return posts
 
-# IMPORTANT: Static routes must come BEFORE parameterized routes
 @api_router.get("/blog/all/admin")
 async def get_all_blog_posts(current_user: dict = Depends(get_current_user)):
-    """Get all blog posts (admin)"""
     posts = await db.blog_posts.find().sort("created_at", -1).to_list(100)
     for p in posts:
         p.pop("_id", None)
@@ -1014,7 +985,6 @@ async def get_all_blog_posts(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/blog/{slug}")
 async def get_blog_post(slug: str):
-    """Get a single blog post by slug"""
     post = await db.blog_posts.find_one({"slug": slug, "is_published": True})
     if not post:
         raise HTTPException(status_code=404, detail="Blog post not found")
@@ -1023,7 +993,6 @@ async def get_blog_post(slug: str):
 
 @api_router.post("/blog")
 async def create_blog_post(post: BlogPost, current_user: dict = Depends(get_current_user)):
-    """Create a new blog post"""
     post_dict = post.model_dump()
     post_dict["id"] = str(uuid.uuid4())
     post_dict["slug"] = post_dict["slug"] or post_dict["title"].lower().replace(" ", "-").replace("?", "").replace("!", "")
@@ -1035,7 +1004,6 @@ async def create_blog_post(post: BlogPost, current_user: dict = Depends(get_curr
 
 @api_router.put("/blog/{post_id}")
 async def update_blog_post(post_id: str, post: BlogPost, current_user: dict = Depends(get_current_user)):
-    """Update a blog post"""
     post_dict = post.model_dump()
     post_dict["id"] = post_id
     post_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -1044,32 +1012,106 @@ async def update_blog_post(post_id: str, post: BlogPost, current_user: dict = De
 
 @api_router.delete("/blog/{post_id}")
 async def delete_blog_post(post_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete a blog post"""
     await db.blog_posts.delete_one({"id": post_id})
     return {"message": "Blog post deleted"}
 
 # ==================== SITE SETTINGS ====================
 
-class SiteSettings(BaseModel):
-    notification_bar_enabled: bool = True
-    chat_enabled: bool = True
-    chat_whatsapp: Optional[str] = None
-
 @api_router.get("/settings")
 async def get_site_settings():
-    """Get site settings"""
     settings = await db.site_settings.find_one({"id": "main"})
     if not settings:
-        settings = {"id": "main", "notification_bar_enabled": True, "chat_enabled": True}
+        settings = {
+            "id": "main", 
+            "notification_bar_enabled": True, 
+            "chat_enabled": True,
+            "service_charge": 0,
+            "tax_percentage": 0,
+            "tax_label": "Tax"
+        }
     settings.pop("_id", None)
     return settings
 
 @api_router.put("/settings")
 async def update_site_settings(settings: dict, current_user: dict = Depends(get_current_user)):
-    """Update site settings"""
     settings["id"] = "main"
     await db.site_settings.update_one({"id": "main"}, {"$set": settings}, upsert=True)
     return settings
+
+# ==================== PROMO CODES ====================
+
+@api_router.get("/promo-codes")
+async def get_promo_codes(current_user: dict = Depends(get_current_user)):
+    codes = await db.promo_codes.find().sort("created_at", -1).to_list(100)
+    for c in codes:
+        c.pop("_id", None)
+    return codes
+
+@api_router.post("/promo-codes")
+async def create_promo_code(code_data: PromoCodeCreate, current_user: dict = Depends(get_current_user)):
+    # Check if code already exists
+    existing = await db.promo_codes.find_one({"code": code_data.code.upper()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Promo code already exists")
+    
+    code = PromoCode(
+        code=code_data.code.upper(),
+        discount_type=code_data.discount_type,
+        discount_value=code_data.discount_value,
+        min_order_amount=code_data.min_order_amount,
+        max_uses=code_data.max_uses,
+        is_active=code_data.is_active
+    )
+    await db.promo_codes.insert_one(code.model_dump())
+    result = code.model_dump()
+    result.pop("_id", None)
+    return result
+
+@api_router.put("/promo-codes/{code_id}")
+async def update_promo_code(code_id: str, code_data: PromoCodeCreate, current_user: dict = Depends(get_current_user)):
+    existing = await db.promo_codes.find_one({"id": code_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+    
+    update_data = code_data.model_dump()
+    update_data["code"] = update_data["code"].upper()
+    await db.promo_codes.update_one({"id": code_id}, {"$set": update_data})
+    updated = await db.promo_codes.find_one({"id": code_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/promo-codes/{code_id}")
+async def delete_promo_code(code_id: str, current_user: dict = Depends(get_current_user)):
+    result = await db.promo_codes.delete_one({"id": code_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+    return {"message": "Promo code deleted"}
+
+@api_router.post("/promo-codes/validate")
+async def validate_promo_code(code: str, subtotal: float):
+    """Validate a promo code and return discount info"""
+    promo = await db.promo_codes.find_one({"code": code.upper(), "is_active": True})
+    if not promo:
+        raise HTTPException(status_code=404, detail="Invalid promo code")
+    
+    if promo.get("min_order_amount", 0) > subtotal:
+        raise HTTPException(status_code=400, detail=f"Minimum order amount is Rs {promo['min_order_amount']}")
+    
+    if promo.get("max_uses") and promo.get("used_count", 0) >= promo["max_uses"]:
+        raise HTTPException(status_code=400, detail="Promo code has reached maximum uses")
+    
+    # Calculate discount
+    if promo["discount_type"] == "percentage":
+        discount = subtotal * (promo["discount_value"] / 100)
+    else:
+        discount = promo["discount_value"]
+    
+    return {
+        "valid": True,
+        "code": promo["code"],
+        "discount_type": promo["discount_type"],
+        "discount_value": promo["discount_value"],
+        "discount_amount": round(discount, 2)
+    }
 
 # ==================== ROOT ====================
 

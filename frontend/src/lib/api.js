@@ -3,7 +3,6 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API_URL = `${BACKEND_URL}/api`;
 
-// Create axios instance
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -11,7 +10,6 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('admin_token');
   if (token) {
@@ -20,14 +18,12 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Auth API
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
 };
 
-// Upload API
 export const uploadAPI = {
   uploadImage: (file) => {
     const formData = new FormData();
@@ -39,7 +35,6 @@ export const uploadAPI = {
   getImageUrl: (path) => `${BACKEND_URL}${path}`,
 };
 
-// Products API
 export const productsAPI = {
   getAll: (categoryId = null, activeOnly = true) => {
     const params = new URLSearchParams();
@@ -54,7 +49,6 @@ export const productsAPI = {
   reorder: (productIds) => api.put('/products/reorder', { product_ids: productIds }),
 };
 
-// Categories API
 export const categoriesAPI = {
   getAll: () => api.get('/categories'),
   create: (data) => api.post('/categories', data),
@@ -62,15 +56,15 @@ export const categoriesAPI = {
   delete: (id) => api.delete(`/categories/${id}`),
 };
 
-// Reviews API
 export const reviewsAPI = {
   getAll: () => api.get('/reviews'),
   create: (data) => api.post('/reviews', data),
   update: (id, data) => api.put(`/reviews/${id}`, data),
   delete: (id) => api.delete(`/reviews/${id}`),
+  syncTrustpilot: () => api.post('/reviews/sync-trustpilot'),
+  getTrustpilotStatus: () => api.get('/reviews/trustpilot-status'),
 };
 
-// FAQ API
 export const faqsAPI = {
   getAll: () => api.get('/faqs'),
   create: (data) => api.post('/faqs', data),
@@ -79,14 +73,12 @@ export const faqsAPI = {
   reorder: (faqIds) => api.put('/faqs/reorder', faqIds),
 };
 
-// Pages API
 export const pagesAPI = {
   get: (pageKey) => api.get(`/pages/${pageKey}`),
-  update: (pageKey, title, content) => 
+  update: (pageKey, title, content) =>
     api.put(`/pages/${pageKey}?title=${encodeURIComponent(title)}&content=${encodeURIComponent(content)}`),
 };
 
-// Social Links API
 export const socialLinksAPI = {
   getAll: () => api.get('/social-links'),
   create: (data) => api.post('/social-links', data),
@@ -94,13 +86,11 @@ export const socialLinksAPI = {
   delete: (id) => api.delete(`/social-links/${id}`),
 };
 
-// Seed API
 export const seedAPI = {
   seed: () => api.post('/seed'),
   clearProducts: () => api.post('/clear-products'),
 };
 
-// Take.app API
 export const takeappAPI = {
   getStore: () => api.get('/takeapp/store'),
   getOrders: () => api.get('/takeapp/orders'),
@@ -110,15 +100,21 @@ export const takeappAPI = {
   syncProducts: () => api.post('/takeapp/sync-products'),
 };
 
-// Orders API
 export const ordersAPI = {
   create: (data) => api.post('/orders/create', data),
   getAll: () => api.get('/orders'),
-  uploadPaymentScreenshot: (orderId, screenshotUrl) => 
+  uploadPaymentScreenshot: (orderId, screenshotUrl) =>
     api.post(`/orders/${orderId}/payment-screenshot`, { screenshot_url: screenshotUrl }),
 };
 
-// Contact Links API
+export const promoCodesAPI = {
+  getAll: () => api.get('/promo-codes'),
+  create: (data) => api.post('/promo-codes', data),
+  update: (id, data) => api.put(`/promo-codes/${id}`, data),
+  delete: (id) => api.delete(`/promo-codes/${id}`),
+  validate: (code, subtotal) => api.post(`/promo-codes/validate?code=${encodeURIComponent(code)}&subtotal=${subtotal}`),
+};
+
 export const contactsAPI = {
   getAll: () => api.get('/contacts'),
   getAllAdmin: () => api.get('/contacts/all'),
@@ -127,7 +123,6 @@ export const contactsAPI = {
   delete: (id) => api.delete(`/contacts/${id}`),
 };
 
-// Payment Methods API
 export const paymentMethodsAPI = {
   getAll: () => api.get('/payment-methods'),
   getAllAdmin: () => api.get('/payment-methods/all'),
@@ -136,13 +131,11 @@ export const paymentMethodsAPI = {
   delete: (id) => api.delete(`/payment-methods/${id}`),
 };
 
-// Notification Bar API
 export const notificationBarAPI = {
   get: () => api.get('/notification-bar'),
   update: (data) => api.put('/notification-bar', data),
 };
 
-// Blog API
 export const blogAPI = {
   getAll: () => api.get('/blog'),
   getOne: (slug) => api.get(`/blog/${slug}`),
@@ -152,7 +145,6 @@ export const blogAPI = {
   delete: (id) => api.delete(`/blog/${id}`),
 };
 
-// Site Settings API
 export const settingsAPI = {
   get: () => api.get('/settings'),
   update: (data) => api.put('/settings', data),
