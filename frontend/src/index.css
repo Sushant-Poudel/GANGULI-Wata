@@ -96,6 +96,15 @@
     background: #F5A623;
 }
 
+/* Hide scrollbar for horizontal scroll containers */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
 /* Rich text editor styles */
 .rich-text-content h1 {
     font-size: 2rem;
