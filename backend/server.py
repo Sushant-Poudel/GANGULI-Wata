@@ -995,6 +995,15 @@ async def get_blog_posts():
         p.pop("_id", None)
     return posts
 
+# IMPORTANT: Static routes must come BEFORE parameterized routes
+@api_router.get("/blog/all/admin")
+async def get_all_blog_posts(current_user: dict = Depends(get_current_user)):
+    """Get all blog posts (admin)"""
+    posts = await db.blog_posts.find().sort("created_at", -1).to_list(100)
+    for p in posts:
+        p.pop("_id", None)
+    return posts
+
 @api_router.get("/blog/{slug}")
 async def get_blog_post(slug: str):
     """Get a single blog post by slug"""
@@ -1003,14 +1012,6 @@ async def get_blog_post(slug: str):
         raise HTTPException(status_code=404, detail="Blog post not found")
     post.pop("_id", None)
     return post
-
-@api_router.get("/blog/all/admin")
-async def get_all_blog_posts(current_user: dict = Depends(get_current_user)):
-    """Get all blog posts (admin)"""
-    posts = await db.blog_posts.find().sort("created_at", -1).to_list(100)
-    for p in posts:
-        p.pop("_id", None)
-    return posts
 
 @api_router.post("/blog")
 async def create_blog_post(post: BlogPost, current_user: dict = Depends(get_current_user)):
