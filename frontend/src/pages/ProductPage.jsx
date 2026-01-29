@@ -26,6 +26,8 @@ export default function ProductPage() {
     customer_name: '',
     customer_phone: '',
     customer_email: '',
+    user_id: '',
+    server_id: '',
     remark: ''
   });
 
