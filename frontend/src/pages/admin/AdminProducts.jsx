@@ -49,6 +49,7 @@ export default function AdminProducts() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState(emptyProduct);
   const [newVariation, setNewVariation] = useState(emptyVariation);
+  const [newCustomField, setNewCustomField] = useState(emptyCustomField);
 
   const fetchData = async () => {
     try {
