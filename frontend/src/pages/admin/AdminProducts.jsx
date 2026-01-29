@@ -21,6 +21,7 @@ const emptyProduct = {
   category_id: '',
   variations: [],
   tags: [],
+  custom_fields: [],
   sort_order: 0,
   is_active: true,
   is_sold_out: false
@@ -31,6 +32,13 @@ const emptyVariation = {
   name: '',
   price: '',
   original_price: ''
+};
+
+const emptyCustomField = {
+  id: '',
+  label: '',
+  placeholder: '',
+  required: false
 };
 
 export default function AdminProducts() {
