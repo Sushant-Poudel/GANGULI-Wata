@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, ExternalLink, Store, Package, ShoppingCart, AlertTriangle } from 'lucide-react';
+import { RefreshCw, ExternalLink, Store, ShoppingCart, AlertTriangle, FileText } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { takeappAPI } from '@/lib/api';
 
 export default function AdminTakeApp() {
   const [storeInfo, setStoreInfo] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [inventory, setInventory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
@@ -18,14 +16,12 @@ export default function AdminTakeApp() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [storeRes, ordersRes, inventoryRes] = await Promise.all([
+      const [storeRes, ordersRes] = await Promise.all([
         takeappAPI.getStore().catch(err => { if (err.response?.status === 400) setApiKeyMissing(true); throw err; }),
         takeappAPI.getOrders().catch(() => ({ data: [] })),
-        takeappAPI.getInventory().catch(() => ({ data: [] })),
       ]);
       setStoreInfo(storeRes.data);
       setOrders(ordersRes.data);
-      setInventory(inventoryRes.data);
     } catch (error) {
       if (!apiKeyMissing) console.error('Error:', error);
     } finally {
@@ -40,6 +36,27 @@ export default function AdminTakeApp() {
     await fetchData();
     setIsRefreshing(false);
     toast.success('Data refreshed!');
+  };
+
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      'ORDER_STATUS_PENDING': { label: 'Pending', className: 'bg-yellow-500/20 text-yellow-400' },
+      'ORDER_STATUS_COMPLETED': { label: 'Completed', className: 'bg-green-500/20 text-green-400' },
+      'ORDER_STATUS_CANCELLED': { label: 'Cancelled', className: 'bg-red-500/20 text-red-400' },
+      'ORDER_STATUS_PROCESSING': { label: 'Processing', className: 'bg-blue-500/20 text-blue-400' },
+    };
+    const config = statusMap[status] || { label: status?.replace('ORDER_STATUS_', '') || 'Unknown', className: 'bg-gray-500/20 text-gray-400' };
+    return <Badge className={config.className}>{config.label}</Badge>;
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (apiKeyMissing) {
@@ -64,56 +81,114 @@ export default function AdminTakeApp() {
     <AdminLayout title="Take.app Integration">
       <div className="space-y-4 lg:space-y-6" data-testid="admin-takeapp">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-white/60 text-sm lg:text-base">Manage your Take.app store integration</p>
+          <p className="text-white/60 text-sm lg:text-base">View recent orders from Take.app</p>
           <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" className="border-gold-500 text-gold-500 w-full sm:w-auto">
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />Refresh Data
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />Refresh
           </Button>
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">{[1, 2, 3].map(i => <div key={i} className="h-32 skeleton rounded-lg"></div>)}</div>
+          <div className="space-y-4">
+            <div className="h-24 skeleton rounded-lg"></div>
+            <div className="h-64 skeleton rounded-lg"></div>
+          </div>
         ) : (
           <>
+            {/* Store Info */}
             {storeInfo && (
-              <div className="bg-card border border-white/10 rounded-lg p-4 lg:p-6">
-                <div className="flex items-center gap-3 mb-4"><Store className="h-5 w-5 text-gold-500" /><h2 className="font-heading text-lg font-semibold text-white uppercase">Store Info</h2></div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div><span className="text-white/60 text-sm">Store Name</span><p className="text-white font-medium">{storeInfo.name || 'N/A'}</p></div>
-                  <div><span className="text-white/60 text-sm">Alias</span><p className="text-white font-medium">{storeInfo.alias || 'N/A'}</p></div>
-                  <div><span className="text-white/60 text-sm">Currency</span><p className="text-white font-medium">{storeInfo.currency || 'NPR'}</p></div>
-                  <div><a href={`https://take.app/${storeInfo.alias}`} target="_blank" rel="noopener noreferrer" className="text-gold-500 hover:underline flex items-center gap-1 text-sm">Visit Store <ExternalLink className="h-3 w-3" /></a></div>
+              <div className="bg-card border border-white/10 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Store className="h-5 w-5 text-gold-500" />
+                    <div>
+                      <h2 className="font-heading text-lg font-semibold text-white">{storeInfo.name || 'Store'}</h2>
+                      <p className="text-white/40 text-sm">@{storeInfo.alias}</p>
+                    </div>
+                  </div>
+                  <a 
+                    href={`https://take.app/${storeInfo.alias}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-gold-500 hover:text-gold-400 flex items-center gap-1 text-sm"
+                  >
+                    Visit Store <ExternalLink className="h-3 w-3" />
+                  </a>
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-              <div className="bg-card border border-white/10 rounded-lg p-4 lg:p-6">
-                <div className="flex items-center gap-3 mb-4"><ShoppingCart className="h-5 w-5 text-gold-500" /><h2 className="font-heading text-lg font-semibold text-white uppercase">Recent Orders ({orders.length})</h2></div>
-                {orders.length === 0 ? <p className="text-white/40 text-center py-4">No orders yet</p> : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {orders.slice(0, 10).map((order) => (
-                      <div key={order.id} className="bg-black/50 rounded-lg p-3 flex items-center justify-between">
-                        <div><p className="text-white text-sm font-medium">#{order.number || order.id}</p><p className="text-white/40 text-xs">{order.customer_name}</p></div>
-                        <div className="text-right"><p className="text-gold-500 font-medium">Rs {order.total_amount}</p><p className="text-white/40 text-xs">{order.status}</p></div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {/* Recent Orders */}
+            <div className="bg-card border border-white/10 rounded-lg p-4 lg:p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <ShoppingCart className="h-5 w-5 text-gold-500" />
+                <h2 className="font-heading text-lg font-semibold text-white uppercase">Recent Orders</h2>
+                <span className="text-white/40 text-sm">({Math.min(orders.length, 10)} of {orders.length})</span>
               </div>
-
-              <div className="bg-card border border-white/10 rounded-lg p-4 lg:p-6">
-                <div className="flex items-center gap-3 mb-4"><Package className="h-5 w-5 text-gold-500" /><h2 className="font-heading text-lg font-semibold text-white uppercase">Inventory ({inventory.length})</h2></div>
-                {inventory.length === 0 ? <p className="text-white/40 text-center py-4">No inventory items</p> : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {inventory.map((item) => (
-                      <div key={item.id} className="bg-black/50 rounded-lg p-3 flex items-center justify-between">
-                        <p className="text-white text-sm font-medium">{item.name}</p>
-                        <p className={`font-medium ${item.quantity > 0 ? 'text-green-400' : 'text-red-400'}`}>{item.quantity} in stock</p>
+              
+              {orders.length === 0 ? (
+                <p className="text-white/40 text-center py-8">No orders yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {orders.slice(0, 10).map((order) => (
+                    <div 
+                      key={order.id} 
+                      className="bg-black/50 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-gold-500 font-heading font-semibold">#{order.number}</span>
+                          {getStatusBadge(order.status)}
+                        </div>
+                        <p className="text-white font-medium">{order.customerName || order.customer_name || 'Unknown'}</p>
+                        <p className="text-white/40 text-xs">{formatDate(order.createdAt || order.created_at)}</p>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-gold-500 font-bold text-lg">
+                            Rs {((order.totalAmount || order.total_amount || 0) / 100).toLocaleString()}
+                          </p>
+                        </div>
+                        
+                        {order.invoiceUrl && (
+                          <a 
+                            href={order.invoiceUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-white/60 hover:text-gold-500 transition-colors"
+                          >
+                            <FileText className="h-4 w-4" />
+                            <span className="text-sm hidden sm:inline">Invoice</span>
+                          </a>
+                        )}
+                        
+                        <a 
+                          href={`https://take.app/${storeInfo?.alias}/orders/${order.id}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-white/60 hover:text-gold-500 transition-colors"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          <span className="text-sm hidden sm:inline">View</span>
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {orders.length > 10 && (
+                <div className="mt-4 text-center">
+                  <a 
+                    href={`https://take.app/${storeInfo?.alias}/orders`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-gold-500 hover:underline text-sm"
+                  >
+                    View all {orders.length} orders on Take.app →
+                  </a>
+                </div>
+              )}
             </div>
           </>
         )}
