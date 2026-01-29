@@ -1030,6 +1030,7 @@ async def create_blog_post(post: BlogPost, current_user: dict = Depends(get_curr
     post_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     post_dict["updated_at"] = post_dict["created_at"]
     await db.blog_posts.insert_one(post_dict)
+    post_dict.pop("_id", None)
     return post_dict
 
 @api_router.put("/blog/{post_id}")
