@@ -75,17 +75,19 @@ export default function HomePage() {
     window.history.replaceState({}, '', '/');
   };
 
+  const hasNotification = notificationBar && notificationBar.is_active && notificationBar.text;
+
   return (
     <div className="min-h-screen bg-black">
-      {notificationBar && notificationBar.is_active && notificationBar.text && (
-        <div className="py-2 px-4 text-center text-sm font-medium" style={{ backgroundColor: notificationBar.bg_color, color: notificationBar.text_color }}>
+      {hasNotification && (
+        <div className="fixed top-0 left-0 right-0 z-[60] py-2 px-4 text-center text-sm font-medium" style={{ backgroundColor: notificationBar.bg_color, color: notificationBar.text_color }}>
           {notificationBar.link ? <a href={notificationBar.link} className="hover:underline">{notificationBar.text}</a> : notificationBar.text}
         </div>
       )}
 
-      <Navbar />
+      <Navbar notificationBarHeight={hasNotification ? 36 : 0} />
 
-      <section className="pt-16 lg:pt-20" data-testid="reviews-section">
+      <section className={`${hasNotification ? 'pt-24 lg:pt-28' : 'pt-16 lg:pt-20'}`} data-testid="reviews-section">
         <div className="trustpilot-section py-2 lg:py-3 border-b border-white/10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 lg:gap-3">

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Body, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Body, Request, Header
 import fastapi
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse
@@ -78,6 +78,7 @@ class ProductFormField(BaseModel):
 
 class ProductCreate(BaseModel):
     name: str
+    slug: Optional[str] = None  # Custom slug, auto-generated if not provided
     description: str
     image_url: str
     category_id: str
@@ -87,6 +88,9 @@ class ProductCreate(BaseModel):
     custom_fields: List[ProductFormField] = []
     is_active: bool = True
     is_sold_out: bool = False
+    stock_quantity: Optional[int] = None  # None means unlimited
+    flash_sale_end: Optional[str] = None  # ISO datetime when flash sale ends
+    flash_sale_label: Optional[str] = None  # e.g., "FLASH SALE - 50% OFF"
 
 class Product(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -102,6 +106,9 @@ class Product(BaseModel):
     custom_fields: List[ProductFormField] = []
     is_active: bool = True
     is_sold_out: bool = False
+    stock_quantity: Optional[int] = None  # None means unlimited
+    flash_sale_end: Optional[str] = None  # ISO datetime when flash sale ends
+    flash_sale_label: Optional[str] = None  # e.g., "FLASH SALE - 50% OFF"
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class ProductOrderUpdate(BaseModel):
@@ -332,6 +339,45 @@ async def get_product(product_id: str):
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 
+@api_router.get("/products/{product_id}/related")
+async def get_related_products(product_id: str, limit: int = 4):
+    """Get related products (same category or similar tags) - for 'Customers Also Bought' section"""
+    # First get the current product
+    product = await db.products.find_one({"$or": [{"slug": product_id}, {"id": product_id}]})
+    if not product:
+        return []
+    
+    related = []
+    
+    # Find products in same category
+    same_category = await db.products.find({
+        "category_id": product.get("category_id"),
+        "id": {"$ne": product.get("id")},
+        "is_active": True
+    }, {"_id": 0}).limit(limit).to_list(limit)
+    related.extend(same_category)
+    
+    # If not enough, find products with similar tags
+    if len(related) < limit and product.get("tags"):
+        with_tags = await db.products.find({
+            "tags": {"$in": product.get("tags", [])},
+            "id": {"$ne": product.get("id")},
+            "id": {"$nin": [p.get("id") for p in related]},
+            "is_active": True
+        }, {"_id": 0}).limit(limit - len(related)).to_list(limit - len(related))
+        related.extend(with_tags)
+    
+    # If still not enough, get any other products
+    if len(related) < limit:
+        others = await db.products.find({
+            "id": {"$ne": product.get("id")},
+            "id": {"$nin": [p.get("id") for p in related]},
+            "is_active": True
+        }, {"_id": 0}).limit(limit - len(related)).to_list(limit - len(related))
+        related.extend(others)
+    
+    return related[:limit]
+
 def generate_slug(name: str) -> str:
     """Generate a URL-friendly slug from product name"""
     import re
@@ -352,7 +398,18 @@ async def create_product(product_data: ProductCreate, current_user: dict = Depen
 
     product_dict = product_data.model_dump()
     product_dict["sort_order"] = next_order
-    product_dict["slug"] = generate_slug(product_data.name)
+    
+    # Use custom slug if provided, otherwise auto-generate
+    if product_data.slug and product_data.slug.strip():
+        custom_slug = product_data.slug.strip().lower().replace(' ', '-')
+        # Check if slug already exists
+        existing_slug = await db.products.find_one({"slug": custom_slug})
+        if existing_slug:
+            raise HTTPException(status_code=400, detail="This URL slug is already in use. Please choose a different one.")
+        product_dict["slug"] = custom_slug
+    else:
+        product_dict["slug"] = generate_slug(product_data.name)
+    
     product = Product(**product_dict)
     await db.products.insert_one(product.model_dump())
     return product
@@ -364,7 +421,19 @@ async def update_product(product_id: str, product_data: ProductCreate, current_u
         raise HTTPException(status_code=404, detail="Product not found")
 
     update_data = product_data.model_dump()
-    update_data["slug"] = generate_slug(product_data.name)
+    
+    # Use custom slug if provided, otherwise keep existing or auto-generate
+    if product_data.slug and product_data.slug.strip():
+        custom_slug = product_data.slug.strip().lower().replace(' ', '-')
+        # Check if slug is already used by another product
+        existing_slug = await db.products.find_one({"slug": custom_slug, "id": {"$ne": product_id}})
+        if existing_slug:
+            raise HTTPException(status_code=400, detail="This URL slug is already in use. Please choose a different one.")
+        update_data["slug"] = custom_slug
+    else:
+        # Keep existing slug or generate new one
+        update_data["slug"] = existing.get("slug") or generate_slug(product_data.name)
+    
     await db.products.update_one({"id": product_id}, {"$set": update_data})
     updated = await db.products.find_one({"id": product_id}, {"_id": 0})
     return updated
@@ -1277,6 +1346,610 @@ async def get_recent_purchases(limit: int = 10):
     
     random.shuffle(purchases)
     return purchases[:limit]
+
+# ==================== WISHLIST ====================
+
+class WishlistItem(BaseModel):
+    product_id: str
+    variation_id: Optional[str] = None
+
+class WishlistCreate(BaseModel):
+    visitor_id: str  # Browser fingerprint or localStorage ID
+    product_id: str
+    variation_id: Optional[str] = None
+    email: Optional[str] = None  # For price drop notifications
+
+@api_router.get("/wishlist/{visitor_id}")
+async def get_wishlist(visitor_id: str):
+    """Get wishlist items for a visitor"""
+    items = await db.wishlists.find({"visitor_id": visitor_id}, {"_id": 0}).to_list(100)
+    
+    # Populate product details
+    for item in items:
+        product = await db.products.find_one({"id": item.get("product_id")}, {"_id": 0})
+        item["product"] = product
+    
+    return items
+
+@api_router.post("/wishlist")
+async def add_to_wishlist(data: WishlistCreate):
+    """Add item to wishlist"""
+    # Check if already in wishlist
+    existing = await db.wishlists.find_one({
+        "visitor_id": data.visitor_id,
+        "product_id": data.product_id,
+        "variation_id": data.variation_id
+    })
+    
+    if existing:
+        return {"message": "Already in wishlist", "id": existing.get("id")}
+    
+    # Get current price for tracking
+    product = await db.products.find_one({"id": data.product_id})
+    current_price = None
+    if product and data.variation_id:
+        for v in product.get("variations", []):
+            if v.get("id") == data.variation_id:
+                current_price = v.get("price")
+                break
+    elif product and product.get("variations"):
+        current_price = product["variations"][0].get("price")
+    
+    wishlist_item = {
+        "id": str(uuid.uuid4()),
+        "visitor_id": data.visitor_id,
+        "product_id": data.product_id,
+        "variation_id": data.variation_id,
+        "email": data.email,
+        "price_when_added": current_price,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.wishlists.insert_one(wishlist_item)
+    return {"message": "Added to wishlist", "id": wishlist_item["id"]}
+
+@api_router.delete("/wishlist/{visitor_id}/{product_id}")
+async def remove_from_wishlist(visitor_id: str, product_id: str, variation_id: Optional[str] = None):
+    """Remove item from wishlist"""
+    query = {"visitor_id": visitor_id, "product_id": product_id}
+    if variation_id:
+        query["variation_id"] = variation_id
+    
+    result = await db.wishlists.delete_one(query)
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found in wishlist")
+    return {"message": "Removed from wishlist"}
+
+@api_router.put("/wishlist/{visitor_id}/email")
+async def update_wishlist_email(visitor_id: str, email: str):
+    """Update email for price drop notifications"""
+    await db.wishlists.update_many(
+        {"visitor_id": visitor_id},
+        {"$set": {"email": email}}
+    )
+    return {"message": "Email updated for notifications"}
+
+# ==================== ORDER TRACKING ====================
+
+class OrderStatusUpdate(BaseModel):
+    status: str  # pending, processing, completed, cancelled
+    note: Optional[str] = None
+
+@api_router.get("/orders/track/{order_id}")
+async def track_order(order_id: str):
+    """Public order tracking by order ID"""
+    order = await db.orders.find_one(
+        {"$or": [{"id": order_id}, {"takeapp_order_id": order_id}]},
+        {"_id": 0}
+    )
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Get status history
+    history = await db.order_status_history.find(
+        {"order_id": order.get("id")},
+        {"_id": 0}
+    ).sort("created_at", 1).to_list(50)
+    
+    # Mask sensitive data for public view
+    return {
+        "id": order.get("id"),
+        "order_number": order.get("takeapp_order_number"),
+        "status": order.get("status", "pending"),
+        "items_text": order.get("items_text"),
+        "total_amount": order.get("total_amount"),
+        "created_at": order.get("created_at"),
+        "status_history": history,
+        "estimated_delivery": "Instant delivery after payment confirmation"
+    }
+
+@api_router.put("/orders/{order_id}/status")
+async def update_order_status(order_id: str, status_data: OrderStatusUpdate, current_user: dict = Depends(get_current_user)):
+    """Admin: Update order status"""
+    order = await db.orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    old_status = order.get("status", "pending")
+    
+    # Update order status
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {"status": status_data.status, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Add to status history
+    history_entry = {
+        "id": str(uuid.uuid4()),
+        "order_id": order_id,
+        "old_status": old_status,
+        "new_status": status_data.status,
+        "note": status_data.note,
+        "updated_by": current_user.get("email"),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.order_status_history.insert_one(history_entry)
+    
+    return {"message": f"Order status updated to {status_data.status}"}
+
+@api_router.get("/orders/{order_id}")
+async def get_order_details(order_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin: Get full order details"""
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    history = await db.order_status_history.find(
+        {"order_id": order_id},
+        {"_id": 0}
+    ).sort("created_at", 1).to_list(50)
+    
+    order["status_history"] = history
+    return order
+
+# ==================== ANALYTICS DASHBOARD ====================
+
+@api_router.get("/analytics/overview")
+async def get_analytics_overview(current_user: dict = Depends(get_current_user)):
+    """Get overview analytics for admin dashboard"""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    week_ago = (now - timedelta(days=7)).isoformat()
+    month_ago = (now - timedelta(days=30)).isoformat()
+    
+    # Today's stats
+    today_orders = await db.orders.count_documents({"created_at": {"$gte": today_start}})
+    today_revenue_cursor = await db.orders.aggregate([
+        {"$match": {"created_at": {"$gte": today_start}, "status": {"$ne": "cancelled"}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+    ]).to_list(1)
+    today_revenue = today_revenue_cursor[0]["total"] if today_revenue_cursor else 0
+    
+    # This week stats
+    week_orders = await db.orders.count_documents({"created_at": {"$gte": week_ago}})
+    week_revenue_cursor = await db.orders.aggregate([
+        {"$match": {"created_at": {"$gte": week_ago}, "status": {"$ne": "cancelled"}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+    ]).to_list(1)
+    week_revenue = week_revenue_cursor[0]["total"] if week_revenue_cursor else 0
+    
+    # This month stats
+    month_orders = await db.orders.count_documents({"created_at": {"$gte": month_ago}})
+    month_revenue_cursor = await db.orders.aggregate([
+        {"$match": {"created_at": {"$gte": month_ago}, "status": {"$ne": "cancelled"}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+    ]).to_list(1)
+    month_revenue = month_revenue_cursor[0]["total"] if month_revenue_cursor else 0
+    
+    # All time stats
+    total_orders = await db.orders.count_documents({})
+    total_revenue_cursor = await db.orders.aggregate([
+        {"$match": {"status": {"$ne": "cancelled"}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+    ]).to_list(1)
+    total_revenue = total_revenue_cursor[0]["total"] if total_revenue_cursor else 0
+    
+    # Product & category counts
+    total_products = await db.products.count_documents({"is_active": True})
+    total_categories = await db.categories.count_documents({})
+    total_reviews = await db.reviews.count_documents({})
+    
+    # Wishlist count
+    total_wishlists = await db.wishlists.count_documents({})
+    
+    return {
+        "today": {"orders": today_orders, "revenue": today_revenue},
+        "week": {"orders": week_orders, "revenue": week_revenue},
+        "month": {"orders": month_orders, "revenue": month_revenue},
+        "all_time": {"orders": total_orders, "revenue": total_revenue},
+        "counts": {
+            "products": total_products,
+            "categories": total_categories,
+            "reviews": total_reviews,
+            "wishlists": total_wishlists
+        }
+    }
+
+@api_router.get("/analytics/top-products")
+async def get_top_products(current_user: dict = Depends(get_current_user), limit: int = 10):
+    """Get top selling products"""
+    # Aggregate orders to find top products
+    pipeline = [
+        {"$unwind": "$items"},
+        {"$group": {
+            "_id": "$items.name",
+            "total_quantity": {"$sum": "$items.quantity"},
+            "total_revenue": {"$sum": {"$multiply": ["$items.price", "$items.quantity"]}}
+        }},
+        {"$sort": {"total_quantity": -1}},
+        {"$limit": limit}
+    ]
+    
+    top_products = await db.orders.aggregate(pipeline).to_list(limit)
+    
+    return [
+        {
+            "name": p["_id"],
+            "quantity": p["total_quantity"],
+            "revenue": p["total_revenue"]
+        }
+        for p in top_products
+    ]
+
+@api_router.get("/analytics/revenue-chart")
+async def get_revenue_chart(current_user: dict = Depends(get_current_user), days: int = 30):
+    """Get daily revenue for chart"""
+    now = datetime.now(timezone.utc)
+    start_date = (now - timedelta(days=days)).isoformat()
+    
+    pipeline = [
+        {"$match": {"created_at": {"$gte": start_date}, "status": {"$ne": "cancelled"}}},
+        {"$addFields": {
+            "date": {"$substr": ["$created_at", 0, 10]}
+        }},
+        {"$group": {
+            "_id": "$date",
+            "orders": {"$sum": 1},
+            "revenue": {"$sum": "$total_amount"}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    daily_data = await db.orders.aggregate(pipeline).to_list(days)
+    
+    # Fill in missing dates with zero values
+    result = []
+    current = now - timedelta(days=days)
+    data_map = {d["_id"]: d for d in daily_data}
+    
+    for i in range(days + 1):
+        date_str = current.strftime("%Y-%m-%d")
+        if date_str in data_map:
+            result.append({
+                "date": date_str,
+                "orders": data_map[date_str]["orders"],
+                "revenue": data_map[date_str]["revenue"]
+            })
+        else:
+            result.append({"date": date_str, "orders": 0, "revenue": 0})
+        current += timedelta(days=1)
+    
+    return result
+
+@api_router.get("/analytics/order-status")
+async def get_order_status_breakdown(current_user: dict = Depends(get_current_user)):
+    """Get order status breakdown"""
+    pipeline = [
+        {"$group": {
+            "_id": "$status",
+            "count": {"$sum": 1}
+        }}
+    ]
+    
+    status_data = await db.orders.aggregate(pipeline).to_list(10)
+    
+    return {
+        item["_id"] or "pending": item["count"]
+        for item in status_data
+    }
+
+# ==================== SEO / SITEMAP ====================
+
+from fastapi.responses import Response
+
+@api_router.get("/sitemap.xml")
+async def get_sitemap():
+    """Generate dynamic sitemap for SEO"""
+    base_url = os.environ.get("SITE_URL", "https://gameshopnepal.com")
+    
+    # Static pages
+    static_pages = [
+        {"loc": "/", "priority": "1.0", "changefreq": "daily"},
+        {"loc": "/about", "priority": "0.7", "changefreq": "monthly"},
+        {"loc": "/faq", "priority": "0.6", "changefreq": "monthly"},
+        {"loc": "/terms", "priority": "0.5", "changefreq": "monthly"},
+        {"loc": "/blog", "priority": "0.8", "changefreq": "weekly"},
+    ]
+    
+    # Get all active products
+    products = await db.products.find({"is_active": True}, {"slug": 1}).to_list(1000)
+    
+    # Get all published blog posts
+    blog_posts = await db.blog_posts.find({"is_published": True}, {"slug": 1}).to_list(100)
+    
+    # Get all categories
+    categories = await db.categories.find({}, {"slug": 1}).to_list(100)
+    
+    # Build sitemap XML
+    xml_content = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml_content += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    
+    # Add static pages
+    for page in static_pages:
+        xml_content += f'''  <url>
+    <loc>{base_url}{page["loc"]}</loc>
+    <changefreq>{page["changefreq"]}</changefreq>
+    <priority>{page["priority"]}</priority>
+  </url>\n'''
+    
+    # Add products
+    for product in products:
+        if product.get("slug"):
+            xml_content += f'''  <url>
+    <loc>{base_url}/product/{product["slug"]}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>\n'''
+    
+    # Add blog posts
+    for post in blog_posts:
+        if post.get("slug"):
+            xml_content += f'''  <url>
+    <loc>{base_url}/blog/{post["slug"]}</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>\n'''
+    
+    xml_content += '</urlset>'
+    
+    return Response(content=xml_content, media_type="application/xml")
+
+@api_router.get("/seo/meta/{page_type}/{slug}")
+async def get_seo_meta(page_type: str, slug: str):
+    """Get SEO meta data for a specific page"""
+    if page_type == "product":
+        product = await db.products.find_one({"slug": slug}, {"_id": 0})
+        if product:
+            # Get lowest price from variations
+            min_price = min([v.get("price", 0) for v in product.get("variations", [])]) if product.get("variations") else 0
+            
+            return {
+                "title": f"{product['name']} - Buy Online | GameShop Nepal",
+                "description": f"Buy {product['name']} at the best price in Nepal. Starting from Rs {min_price}. Instant delivery, 100% genuine products.",
+                "keywords": f"{product['name']}, buy {product['name']} Nepal, {product['name']} price Nepal, digital products Nepal",
+                "og_image": product.get("image_url"),
+                "schema": {
+                    "@context": "https://schema.org",
+                    "@type": "Product",
+                    "name": product["name"],
+                    "description": product.get("description", "")[:200].replace("<p>", "").replace("</p>", ""),
+                    "image": product.get("image_url"),
+                    "offers": {
+                        "@type": "AggregateOffer",
+                        "lowPrice": min_price,
+                        "priceCurrency": "NPR",
+                        "availability": "https://schema.org/InStock" if not product.get("is_sold_out") else "https://schema.org/OutOfStock"
+                    }
+                }
+            }
+    
+    elif page_type == "blog":
+        post = await db.blog_posts.find_one({"slug": slug}, {"_id": 0})
+        if post:
+            return {
+                "title": f"{post['title']} | GameShop Nepal Blog",
+                "description": post.get("excerpt", post.get("content", "")[:160]),
+                "keywords": f"{post['title']}, gaming blog Nepal, digital products guide",
+                "og_image": post.get("image_url"),
+                "schema": {
+                    "@context": "https://schema.org",
+                    "@type": "BlogPosting",
+                    "headline": post["title"],
+                    "description": post.get("excerpt", ""),
+                    "image": post.get("image_url"),
+                    "datePublished": post.get("created_at"),
+                    "author": {"@type": "Organization", "name": "GameShop Nepal"}
+                }
+            }
+    
+    # Default meta
+    return {
+        "title": "GameShop Nepal - Digital Products at Best Prices",
+        "description": "Buy Netflix, Spotify, YouTube Premium, PUBG UC and more at the best prices in Nepal. Instant delivery, 100% genuine products.",
+        "keywords": "digital products Nepal, Netflix Nepal, Spotify Nepal, gaming topup Nepal"
+    }
+
+# ==================== CUSTOMER ACCOUNTS ====================
+
+class CustomerLogin(BaseModel):
+    phone: str
+    otp: Optional[str] = None
+
+class CustomerProfile(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    
+@api_router.post("/customers/login")
+async def customer_login(data: CustomerLogin):
+    """Login/Register customer by phone number - sends OTP or validates"""
+    phone = data.phone.strip().replace(" ", "").replace("-", "")
+    
+    # Find or create customer
+    customer = await db.customers.find_one({"phone": phone})
+    
+    if not data.otp:
+        # Generate OTP (in production, send via SMS)
+        import random
+        otp = str(random.randint(100000, 999999))
+        
+        if customer:
+            await db.customers.update_one({"phone": phone}, {"$set": {"otp": otp, "otp_expires": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()}})
+        else:
+            await db.customers.insert_one({
+                "id": str(uuid.uuid4()),
+                "phone": phone,
+                "name": None,
+                "email": None,
+                "otp": otp,
+                "otp_expires": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "total_orders": 0,
+                "total_spent": 0
+            })
+        
+        # In production, send OTP via SMS. For now, return it (dev mode)
+        return {"message": "OTP sent", "dev_otp": otp}  # Remove dev_otp in production
+    
+    else:
+        # Validate OTP
+        if not customer:
+            raise HTTPException(status_code=404, detail="Customer not found")
+        
+        if customer.get("otp") != data.otp:
+            raise HTTPException(status_code=400, detail="Invalid OTP")
+        
+        if customer.get("otp_expires") and customer["otp_expires"] < datetime.now(timezone.utc).isoformat():
+            raise HTTPException(status_code=400, detail="OTP expired")
+        
+        # Clear OTP and generate token
+        await db.customers.update_one({"phone": phone}, {"$unset": {"otp": "", "otp_expires": ""}})
+        
+        token = jwt.encode(
+            {"customer_id": customer["id"], "phone": phone, "exp": datetime.now(timezone.utc) + timedelta(days=30)},
+            JWT_SECRET,
+            algorithm="HS256"
+        )
+        
+        return {
+            "token": token,
+            "customer": {
+                "id": customer["id"],
+                "phone": customer["phone"],
+                "name": customer.get("name"),
+                "email": customer.get("email")
+            }
+        }
+
+async def get_current_customer(authorization: str = Header(None)):
+    """Dependency to get current logged-in customer"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.replace("Bearer ", "")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        customer = await db.customers.find_one({"id": payload["customer_id"]}, {"_id": 0, "otp": 0, "otp_expires": 0})
+        if not customer:
+            raise HTTPException(status_code=401, detail="Customer not found")
+        return customer
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+@api_router.get("/customers/me")
+async def get_customer_profile(customer: dict = Depends(get_current_customer)):
+    """Get current customer profile"""
+    return customer
+
+@api_router.put("/customers/me")
+async def update_customer_profile(profile: CustomerProfile, customer: dict = Depends(get_current_customer)):
+    """Update customer profile"""
+    update_data = {}
+    if profile.name is not None:
+        update_data["name"] = profile.name
+    if profile.email is not None:
+        update_data["email"] = profile.email
+    
+    if update_data:
+        await db.customers.update_one({"id": customer["id"]}, {"$set": update_data})
+    
+    updated = await db.customers.find_one({"id": customer["id"]}, {"_id": 0, "otp": 0, "otp_expires": 0})
+    return updated
+
+@api_router.get("/customers/me/orders")
+async def get_customer_orders(customer: dict = Depends(get_current_customer)):
+    """Get customer's order history"""
+    # Find orders by phone number
+    orders = await db.orders.find(
+        {"customer_phone": customer["phone"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    return orders
+
+@api_router.post("/customers/sync-from-takeapp")
+async def sync_customers_from_takeapp(current_user: dict = Depends(get_current_user)):
+    """Admin: Sync customer data from Take.app orders"""
+    if not TAKEAPP_API_KEY:
+        raise HTTPException(status_code=400, detail="Take.app API key not configured")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{TAKEAPP_BASE_URL}/orders?api_key={TAKEAPP_API_KEY}")
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="Failed to fetch Take.app orders")
+        
+        orders = response.json()
+        synced_count = 0
+        
+        for order in orders:
+            phone = order.get("customer_phone") or order.get("phone")
+            if not phone:
+                continue
+            
+            phone = phone.strip().replace(" ", "").replace("-", "")
+            
+            # Find or create customer
+            existing = await db.customers.find_one({"phone": phone})
+            
+            order_amount = float(order.get("total", 0) or 0)
+            
+            if existing:
+                # Update stats
+                await db.customers.update_one(
+                    {"phone": phone},
+                    {
+                        "$inc": {"total_orders": 1, "total_spent": order_amount},
+                        "$set": {
+                            "name": order.get("customer_name") or existing.get("name"),
+                            "email": order.get("customer_email") or existing.get("email"),
+                            "last_order_at": order.get("created_at") or datetime.now(timezone.utc).isoformat()
+                        }
+                    }
+                )
+            else:
+                # Create new customer
+                await db.customers.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "phone": phone,
+                    "name": order.get("customer_name"),
+                    "email": order.get("customer_email"),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "total_orders": 1,
+                    "total_spent": order_amount,
+                    "last_order_at": order.get("created_at"),
+                    "source": "takeapp"
+                })
+                synced_count += 1
+        
+        return {"message": f"Synced {synced_count} new customers from Take.app", "total_orders_processed": len(orders)}
+
+@api_router.get("/customers")
+async def get_all_customers(current_user: dict = Depends(get_current_user)):
+    """Admin: Get all customers"""
+    customers = await db.customers.find({}, {"_id": 0, "otp": 0, "otp_expires": 0}).sort("created_at", -1).to_list(1000)
+    return customers
 
 # ==================== ROOT ====================
 

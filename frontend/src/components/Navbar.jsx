@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CartSidebar } from '@/components/Cart';
+import { LanguageToggle } from '@/components/Language';
+import { CustomerAccountSidebar } from '@/components/CustomerAccount';
 
 const LOGO_URL = "https://customer-assets.emergentagent.com/job_8ec93a6a-4f80-4dde-b760-4bc71482fa44/artifacts/4uqt5osn_Staff.zip%20-%201.png";
 
-export default function Navbar() {
+export default function Navbar({ notificationBarHeight = 0 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -16,29 +19,33 @@ export default function Navbar() {
     { href: '/', label: 'Home' },
     { href: '/about', label: 'About' },
     { href: '/blog', label: 'Blog' },
-    { href: '/terms', label: 'TOS' },
+    { href: '/track', label: 'Track Order' },
   ];
 
   const isActive = (path) => location.pathname === path;
 
   const handleSearch = (e) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/?search=${encodeURIComponent(searchQuery.trim())}`);
+    const query = searchQuery.trim();
+    if (query) {
+      // Navigate to homepage with search query
+      navigate(`/?search=${encodeURIComponent(query)}`);
       setIsSearchOpen(false);
       setSearchQuery('');
       setIsMenuOpen(false);
+      
+      // Scroll to products section after a short delay
       setTimeout(() => {
         const productsSection = document.querySelector('[data-testid="products-section"]');
         if (productsSection) {
           productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-      }, 100);
+      }, 300);
     }
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 navbar-blur bg-black/80 border-b border-white/10" data-testid="navbar">
+    <nav className="fixed left-0 right-0 z-50 navbar-blur bg-black/80 border-b border-white/10" style={{ top: notificationBarHeight }} data-testid="navbar">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center" data-testid="nav-logo">
@@ -50,7 +57,7 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 to={link.href}
-                data-testid={`nav-link-${link.label.toLowerCase()}`}
+                data-testid={`nav-link-${link.label.toLowerCase().replace(' ', '-')}`}
                 className={`font-heading text-sm uppercase tracking-wider transition-colors ${
                   isActive(link.href) ? 'text-gold-500' : 'text-white/80 hover:text-gold-500'
                 }`}
@@ -60,7 +67,11 @@ export default function Navbar() {
             ))}
           </div>
 
-          <div className="hidden md:flex items-center">
+          <div className="hidden md:flex items-center gap-3">
+            {/* Language Toggle */}
+            <LanguageToggle />
+            
+            {/* Search */}
             {isSearchOpen ? (
               <form onSubmit={handleSearch} className="flex items-center gap-2">
                 <input
@@ -72,7 +83,10 @@ export default function Navbar() {
                   autoFocus
                   data-testid="search-input"
                 />
-                <Button type="button" variant="ghost" size="sm" onClick={() => setIsSearchOpen(false)} className="text-white/60 hover:text-white p-1">
+                <Button type="submit" size="sm" className="bg-gold-500 hover:bg-gold-600 text-black px-3">
+                  <Search className="h-4 w-4" />
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }} className="text-white/60 hover:text-white p-1">
                   <X className="h-4 w-4" />
                 </Button>
               </form>
@@ -81,18 +95,27 @@ export default function Navbar() {
                 <Search className="h-5 w-5" />
               </Button>
             )}
+            
+            {/* Cart */}
+            <CartSidebar />
+            
+            {/* Customer Account */}
+            <CustomerAccountSidebar />
           </div>
 
           <div className="md:hidden flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => setIsSearchOpen(!isSearchOpen)} className="text-white/60 hover:text-gold-500 p-2" data-testid="mobile-search-btn">
               <Search className="h-5 w-5" />
             </Button>
+            <CartSidebar />
+            <CustomerAccountSidebar />
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-white" data-testid="mobile-menu-toggle">
               {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
         </div>
 
+        {/* Mobile Search */}
         {isSearchOpen && (
           <div className="md:hidden py-3 border-t border-white/10">
             <form onSubmit={handleSearch} className="flex items-center gap-2">
@@ -112,6 +135,7 @@ export default function Navbar() {
           </div>
         )}
 
+        {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t border-white/10" data-testid="mobile-menu">
             <div className="flex flex-col space-y-4">
@@ -119,7 +143,7 @@ export default function Navbar() {
                 <Link
                   key={link.href}
                   to={link.href}
-                  data-testid={`mobile-nav-link-${link.label.toLowerCase()}`}
+                  data-testid={`mobile-nav-link-${link.label.toLowerCase().replace(' ', '-')}`}
                   onClick={() => setIsMenuOpen(false)}
                   className={`font-heading text-sm uppercase tracking-wider py-2 ${
                     isActive(link.href) ? 'text-gold-500' : 'text-white/80'
@@ -128,6 +152,9 @@ export default function Navbar() {
                   {link.label}
                 </Link>
               ))}
+              <div className="pt-2 border-t border-white/10">
+                <LanguageToggle />
+              </div>
             </div>
           </div>
         )}

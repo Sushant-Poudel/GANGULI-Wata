@@ -43,6 +43,7 @@ export const productsAPI = {
     return api.get(`/products?${params.toString()}`);
   },
   getOne: (id) => api.get(`/products/${id}`),
+  getRelated: (id, limit = 4) => api.get(`/products/${id}/related?limit=${limit}`),
   create: (data) => api.post('/products', data),
   update: (id, data) => api.put(`/products/${id}`, data),
   delete: (id) => api.delete(`/products/${id}`),
@@ -160,6 +161,40 @@ export const bundlesAPI = {
 
 export const recentPurchasesAPI = {
   get: (limit = 10) => api.get(`/recent-purchases?limit=${limit}`),
+};
+
+// ==================== WISHLIST ====================
+export const wishlistAPI = {
+  get: (visitorId) => api.get(`/wishlist/${visitorId}`),
+  add: (data) => api.post('/wishlist', data),
+  remove: (visitorId, productId, variationId = null) => {
+    const url = variationId 
+      ? `/wishlist/${visitorId}/${productId}?variation_id=${variationId}`
+      : `/wishlist/${visitorId}/${productId}`;
+    return api.delete(url);
+  },
+  updateEmail: (visitorId, email) => api.put(`/wishlist/${visitorId}/email?email=${encodeURIComponent(email)}`),
+};
+
+// ==================== ORDER TRACKING ====================
+export const orderTrackingAPI = {
+  track: (orderId) => api.get(`/orders/track/${orderId}`),
+  updateStatus: (orderId, data) => api.put(`/orders/${orderId}/status`, data),
+  getDetails: (orderId) => api.get(`/orders/${orderId}`),
+};
+
+// ==================== ANALYTICS ====================
+export const analyticsAPI = {
+  getOverview: () => api.get('/analytics/overview'),
+  getTopProducts: (limit = 10) => api.get(`/analytics/top-products?limit=${limit}`),
+  getRevenueChart: (days = 30) => api.get(`/analytics/revenue-chart?days=${days}`),
+  getOrderStatus: () => api.get('/analytics/order-status'),
+};
+
+// ==================== SEO ====================
+export const seoAPI = {
+  getMeta: (pageType, slug) => api.get(`/seo/meta/${pageType}/${slug}`),
+  getSitemap: () => api.get('/sitemap.xml'),
 };
 
 // Trustpilot invitation utility

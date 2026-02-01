@@ -12,8 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { productsAPI, categoriesAPI } from '@/lib/api';
 
-const AVAILABLE_TAGS = ['Popular', 'Sale', 'New', 'Limited', 'Hot', 'Best Seller'];
-const emptyProduct = { name: '', description: '', image_url: '', category_id: '', variations: [], tags: [], custom_fields: [], sort_order: 0, is_active: true, is_sold_out: false };
+const AVAILABLE_TAGS = ['Popular', 'Sale', 'New', 'Limited', 'Hot', 'Best Seller', 'Flash Sale'];
+const emptyProduct = { name: '', slug: '', description: '', image_url: '', category_id: '', variations: [], tags: [], custom_fields: [], sort_order: 0, is_active: true, is_sold_out: false, stock_quantity: null, flash_sale_end: '', flash_sale_label: '' };
 const emptyVariation = { id: '', name: '', price: '', original_price: '' };
 const emptyCustomField = { id: '', label: '', placeholder: '', required: false };
 
@@ -40,7 +40,7 @@ export default function AdminProducts() {
   useEffect(() => { fetchData(); }, []);
 
   const handleOpenDialog = (product = null) => {
-    if (product) { setEditingProduct(product); setFormData({ name: product.name, description: product.description, image_url: product.image_url, category_id: product.category_id, variations: product.variations || [], tags: product.tags || [], custom_fields: product.custom_fields || [], sort_order: product.sort_order || 0, is_active: product.is_active, is_sold_out: product.is_sold_out }); }
+    if (product) { setEditingProduct(product); setFormData({ name: product.name, slug: product.slug || '', description: product.description, image_url: product.image_url, category_id: product.category_id, variations: product.variations || [], tags: product.tags || [], custom_fields: product.custom_fields || [], sort_order: product.sort_order || 0, is_active: product.is_active, is_sold_out: product.is_sold_out, stock_quantity: product.stock_quantity, flash_sale_end: product.flash_sale_end || '', flash_sale_label: product.flash_sale_label || '' }); }
     else { setEditingProduct(null); setFormData(emptyProduct); }
     setNewVariation(emptyVariation);
     setIsDialogOpen(true);
@@ -178,6 +178,35 @@ export default function AdminProducts() {
                     <SelectTrigger className="bg-black border-white/20"><SelectValue placeholder="Select category" /></SelectTrigger>
                     <SelectContent>{categories.map((cat) => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent>
                   </Select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Custom URL Slug</Label>
+                  <Input value={formData.slug} onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} className="bg-black border-white/20" placeholder="e.g. netflix-premium-1-month" />
+                  <p className="text-white/40 text-xs">URL: /product/{formData.slug || '(auto-generated)'}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Stock Quantity</Label>
+                  <Input type="number" value={formData.stock_quantity ?? ''} onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value === '' ? null : parseInt(e.target.value) })} className="bg-black border-white/20" placeholder="Leave empty for unlimited" min="0" />
+                  <p className="text-white/40 text-xs">Shows "Only X left!" when stock ≤ 5</p>
+                </div>
+              </div>
+              
+              {/* Flash Sale Section */}
+              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg space-y-3">
+                <Label className="text-red-400 font-semibold flex items-center gap-2">⚡ Flash Sale Settings</Label>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Flash Sale Ends At</Label>
+                    <Input type="datetime-local" value={formData.flash_sale_end ? formData.flash_sale_end.slice(0, 16) : ''} onChange={(e) => setFormData({ ...formData, flash_sale_end: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="bg-black border-white/20" />
+                    <p className="text-white/40 text-xs">Leave empty to disable flash sale</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Flash Sale Label</Label>
+                    <Input value={formData.flash_sale_label} onChange={(e) => setFormData({ ...formData, flash_sale_label: e.target.value })} className="bg-black border-white/20" placeholder="e.g. FLASH SALE - 50% OFF" />
+                  </div>
                 </div>
               </div>
 

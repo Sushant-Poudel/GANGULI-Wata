@@ -2,11 +2,14 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#000000" />
-        <meta name="description" content="GameShop Nepal - Your trusted source for digital products, gaming subscriptions, OTT services, and software licenses in Nepal since 2021." />
-        <link rel="icon" type="image/png" href="%PUBLIC_URL%/favicon.png" />
-        <link rel="apple-touch-icon" href="%PUBLIC_URL%/favicon.png" />
+        <meta name="description" content="Buy Netflix, Spotify, PUBG UC and more at the best prices in Nepal. Instant delivery, 100% genuine." />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="GameShop Nepal" />
+        <link rel="apple-touch-icon" href="https://customer-assets.emergentagent.com/job_8ec93a6a-4f80-4dde-b760-4bc71482fa44/artifacts/4uqt5osn_Staff.zip%20-%201.png" />
+        <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />
@@ -23,13 +26,16 @@
         work correctly both with client-side routing and a non-root public URL.
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
-        <title>GameShop Nepal - Digital Products & Gaming Subscriptions</title>
-        <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
+        <title>GameShop Nepal - Digital Products at Best Prices</title>
         <script>
-            (function(w,d,s,r,n){w.TrustpilotObject=n;w[n]=w[n]||function(){(w[n].q=w[n].q||[]).push(arguments)};
-                a=d.createElement(s);a.async=1;a.src=r;a.type='text/java'+s;f=d.getElementsByTagName(s)[0];
-                f.parentNode.insertBefore(a,f)})(window,document,'script', 'https://invitejs.trustpilot.com/tp.min.js', 'tp');
-                tp('register', 'R2dU6tOWAvxQedL8');
+            // Register Service Worker for PWA
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then(reg => console.log('SW registered'))
+                        .catch(err => console.log('SW registration failed:', err));
+                });
+            }
         </script>
         <!--
         These two scripts have been added for the Visual Edits, please do not edit or remove them
