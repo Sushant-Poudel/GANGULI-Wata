@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { productsAPI, ordersAPI, promoCodesAPI, settingsAPI } from '@/lib/api';
+import { productsAPI, ordersAPI, promoCodesAPI, settingsAPI, sendTrustpilotInvitation } from '@/lib/api';
 
 export default function ProductPage() {
   const { productSlug } = useParams();
