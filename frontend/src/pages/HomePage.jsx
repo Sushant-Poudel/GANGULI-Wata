@@ -5,8 +5,10 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import ReviewCard from '@/components/ReviewCard';
+import LivePurchaseTicker from '@/components/LivePurchaseTicker';
+import BundleDealsSection from '@/components/BundleDealsSection';
 import { Button } from '@/components/ui/button';
-import { productsAPI, categoriesAPI, reviewsAPI, notificationBarAPI, blogAPI, paymentMethodsAPI } from '@/lib/api';
+import { productsAPI, categoriesAPI, reviewsAPI, notificationBarAPI, blogAPI, paymentMethodsAPI, bundlesAPI } from '@/lib/api';
 
 const TRUSTPILOT_URL = "https://www.trustpilot.com/review/gameshopnepal.com";
 
