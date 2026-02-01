@@ -1113,6 +1113,171 @@ async def validate_promo_code(code: str, subtotal: float):
         "discount_amount": round(discount, 2)
     }
 
+# ==================== BUNDLE DEALS ====================
+
+class BundleProduct(BaseModel):
+    product_id: str
+    variation_id: Optional[str] = None
+
+class BundleCreate(BaseModel):
+    name: str
+    description: str = ""
+    image_url: str = ""
+    products: List[BundleProduct]
+    original_price: float
+    bundle_price: float
+    is_active: bool = True
+    sort_order: int = 0
+
+class Bundle(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    slug: str = ""
+    description: str = ""
+    image_url: str = ""
+    products: List[dict] = []
+    original_price: float
+    bundle_price: float
+    discount_percentage: float = 0
+    is_active: bool = True
+    sort_order: int = 0
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+@api_router.get("/bundles")
+async def get_bundles():
+    """Get all active bundles with populated product details"""
+    bundles = await db.bundles.find({"is_active": True}).sort("sort_order", 1).to_list(100)
+    
+    # Populate product details for each bundle
+    for bundle in bundles:
+        bundle.pop("_id", None)
+        populated_products = []
+        for bp in bundle.get("products", []):
+            product = await db.products.find_one({"id": bp.get("product_id")}, {"_id": 0})
+            if product:
+                populated_products.append({
+                    "product": product,
+                    "variation_id": bp.get("variation_id")
+                })
+        bundle["populated_products"] = populated_products
+    
+    return bundles
+
+@api_router.get("/bundles/all")
+async def get_all_bundles(current_user: dict = Depends(get_current_user)):
+    """Get all bundles for admin"""
+    bundles = await db.bundles.find().sort("sort_order", 1).to_list(100)
+    for b in bundles:
+        b.pop("_id", None)
+    return bundles
+
+@api_router.post("/bundles")
+async def create_bundle(bundle_data: BundleCreate, current_user: dict = Depends(get_current_user)):
+    slug = bundle_data.name.lower().replace(" ", "-").replace("&", "and")
+    discount_pct = round(((bundle_data.original_price - bundle_data.bundle_price) / bundle_data.original_price) * 100, 1) if bundle_data.original_price > 0 else 0
+    
+    bundle = Bundle(
+        name=bundle_data.name,
+        slug=slug,
+        description=bundle_data.description,
+        image_url=bundle_data.image_url,
+        products=[p.model_dump() for p in bundle_data.products],
+        original_price=bundle_data.original_price,
+        bundle_price=bundle_data.bundle_price,
+        discount_percentage=discount_pct,
+        is_active=bundle_data.is_active,
+        sort_order=bundle_data.sort_order
+    )
+    
+    await db.bundles.insert_one(bundle.model_dump())
+    result = bundle.model_dump()
+    return result
+
+@api_router.put("/bundles/{bundle_id}")
+async def update_bundle(bundle_id: str, bundle_data: BundleCreate, current_user: dict = Depends(get_current_user)):
+    slug = bundle_data.name.lower().replace(" ", "-").replace("&", "and")
+    discount_pct = round(((bundle_data.original_price - bundle_data.bundle_price) / bundle_data.original_price) * 100, 1) if bundle_data.original_price > 0 else 0
+    
+    update_data = {
+        "name": bundle_data.name,
+        "slug": slug,
+        "description": bundle_data.description,
+        "image_url": bundle_data.image_url,
+        "products": [p.model_dump() for p in bundle_data.products],
+        "original_price": bundle_data.original_price,
+        "bundle_price": bundle_data.bundle_price,
+        "discount_percentage": discount_pct,
+        "is_active": bundle_data.is_active,
+        "sort_order": bundle_data.sort_order
+    }
+    
+    await db.bundles.update_one({"id": bundle_id}, {"$set": update_data})
+    updated = await db.bundles.find_one({"id": bundle_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/bundles/{bundle_id}")
+async def delete_bundle(bundle_id: str, current_user: dict = Depends(get_current_user)):
+    result = await db.bundles.delete_one({"id": bundle_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Bundle not found")
+    return {"message": "Bundle deleted"}
+
+# ==================== RECENT PURCHASES (Live Ticker) ====================
+
+import random
+
+# Nepal cities for random location
+NEPAL_CITIES = ["Kathmandu", "Pokhara", "Lalitpur", "Biratnagar", "Bharatpur", "Birgunj", "Dharan", "Butwal", "Hetauda", "Bhaktapur", "Janakpur", "Nepalgunj", "Itahari", "Dhangadhi", "Tulsipur"]
+
+@api_router.get("/recent-purchases")
+async def get_recent_purchases(limit: int = 10):
+    """Get recent purchases for live ticker - mix of real orders and simulated"""
+    purchases = []
+    
+    # Get real recent orders (last 24 hours)
+    yesterday = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    real_orders = await db.orders.find(
+        {"created_at": {"$gte": yesterday}},
+        {"_id": 0, "customer_name": 1, "items_text": 1, "created_at": 1}
+    ).sort("created_at", -1).limit(5).to_list(5)
+    
+    for order in real_orders:
+        # Mask customer name for privacy (show first name only)
+        name_parts = order.get("customer_name", "Customer").split()
+        masked_name = name_parts[0] if name_parts else "Customer"
+        
+        purchases.append({
+            "name": masked_name,
+            "location": random.choice(NEPAL_CITIES),
+            "product": order.get("items_text", "Digital Product"),
+            "time_ago": "Just now",
+            "is_real": True
+        })
+    
+    # If we don't have enough real orders, add simulated ones
+    if len(purchases) < limit:
+        # Get some products for simulation
+        products = await db.products.find({"is_active": True}, {"_id": 0, "name": 1}).limit(20).to_list(20)
+        product_names = [p["name"] for p in products] if products else ["Netflix Premium", "Spotify Premium", "YouTube Premium"]
+        
+        # Common Nepali first names
+        names = ["Aarav", "Sita", "Ram", "Gita", "Bikash", "Anita", "Sunil", "Priya", "Rajesh", "Maya", "Dipak", "Sunita", "Anil", "Kamala", "Binod"]
+        
+        times_ago = ["2 min ago", "5 min ago", "8 min ago", "12 min ago", "15 min ago", "20 min ago", "25 min ago", "30 min ago"]
+        
+        while len(purchases) < limit:
+            purchases.append({
+                "name": random.choice(names),
+                "location": random.choice(NEPAL_CITIES),
+                "product": random.choice(product_names),
+                "time_ago": random.choice(times_ago),
+                "is_real": False
+            })
+    
+    random.shuffle(purchases)
+    return purchases[:limit]
+
 # ==================== ROOT ====================
 
 @api_router.get("/")
