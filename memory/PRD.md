@@ -1,108 +1,101 @@
-# GameShop Nepal - Product Requirements Document
+# GSN - Digital Goods E-Commerce Platform
 
 ## Original Problem Statement
-Build a premium e-commerce website similar to gameshopnepal.com/ottsathi.com for selling digital products (gaming subscriptions, OTT services, software licenses, top-ups) in Nepal with:
-- Homepage with customer reviews at top with Trustpilot link
-- Product grid with square images and category filtering
-- Product pages with variations and WhatsApp ordering
-- Full-featured admin panel for content management
-- Pitch black background with gold accent theme
-
-## User Personas
-1. **Customers**: Nepali gamers and digital product buyers looking for gaming subscriptions, OTT services, software licenses without international payment cards
-2. **Admin**: Store owner managing products, reviews, pages, and social links
-
-## Core Requirements (All Implemented)
-- [x] Homepage with customer reviews section at top
-- [x] "Check All Reviews" button linking to Trustpilot
-- [x] Product grid with square (1:1) images
-- [x] Category filtering
-- [x] Product pages with multiple variations (plans, duration)
-- [x] "Order Now via WhatsApp" button with pre-filled message
-- [x] JWT authentication for admin (hardcoded: gsnadmin/gsnadmin)
-- [x] Admin dashboard with stats
-- [x] Admin product management (CRUD with variations, tags, ordering)
-- [x] Admin review management (CRUD with custom dates)
-- [x] Admin category management (create custom categories)
-- [x] Admin FAQ management (CRUD with ordering)
-- [x] Admin page management (About, Terms with HTML editor)
-- [x] Admin social links management
-- [x] Image upload from device (not URL-based)
-- [x] Pitch black background with gold (#F5A623) accent colors
-- [x] Responsive design for mobile
-- [x] Terms and Conditions page
-- [x] Product tags (Popular, Sale, New, Limited, Hot, Best Seller)
-- [x] Product ordering/reordering
-
-## What's Been Implemented (January 28, 2025)
-
-### Latest Session
-- **Product ordering**: Products can be reordered in admin panel using up/down arrows
-- **Product tags**: Admin can add tags like "Popular", "Sale", "New" etc. to products
-- **FAQ Management**: Full CRUD for FAQs with ordering capability in admin panel
-- **Terms & Conditions page**: New /terms route with editable content via admin Pages
-- **Social media icons fixed**: Icons now properly display based on platform name (includes Discord)
-- **Removed Contact page**: Route and links removed as per user request
-- **Removed Admin button**: Hidden from public navigation
-
-### Backend (FastAPI + MongoDB)
-- User authentication (JWT with fixed credentials: gsnadmin/gsnadmin)
-- Products API with variations, tags, and sort_order
-- Categories API  
-- Reviews API with custom date support
-- FAQs API with CRUD and reordering
-- Pages API (about, terms)
-- Social Links API
-- Image upload API with local file storage
-
-### Frontend (React)
-- Homepage with reviews and product grid
-- Product detail page with variation selection
-- WhatsApp integration for ordering
-- About, FAQ, Terms pages
-- Admin panel with full CRUD for: Products, Categories, Reviews, FAQs, Pages, Social Links
-- Mobile-responsive admin panel
+Build a premium, modern, dark-themed e-commerce website for digital goods, similar to ottsathi.com and gameshopnepal.com.
 
 ## Tech Stack
-- Frontend: React, TailwindCSS, Shadcn/UI
-- Backend: FastAPI, MongoDB
-- Auth: JWT-based (hardcoded credentials)
+- **Backend**: FastAPI, Python, Motor (async MongoDB driver)
+- **Frontend**: React, Tailwind CSS, react-router-dom, lucide-react, axios
+- **Database**: MongoDB
+- **Authentication**: JWT (hardcoded credentials - needs migration to env vars)
 
-## Admin Credentials
-- **URL**: /admin/login
-- **Username**: gsnadmin
-- **Password**: gsnadmin
+## Core Features
 
-## API Endpoints
-- `POST /api/auth/login` - Admin login
-- `GET/POST/PUT/DELETE /api/products` - Product management
-- `PUT /api/products/reorder` - Reorder products
-- `GET/POST/PUT/DELETE /api/categories` - Category management
-- `GET/POST/PUT/DELETE /api/reviews` - Review management
-- `GET/POST/PUT/DELETE /api/faqs` - FAQ management
-- `PUT /api/faqs/reorder` - Reorder FAQs
-- `GET/PUT /api/pages/{page_key}` - Page content (about, terms)
-- `GET/POST/PUT/DELETE /api/social-links` - Social link management
-- `POST /api/upload` - Image upload
+### Public Website
+- Homepage with customer reviews in sliding marquee
+- Product grid with category filtering and search
+- Product pages with variations, rich-text descriptions
+- Blog/Guides section
+- Payment methods display
+- Trust & Safety section
 
-## Prioritized Backlog
+### Admin Panel (/admin)
+- **Credentials**: gsnadmin / gsnadmin (needs to move to env vars)
+- Dashboard overview
+- Product management (CRUD, variations, custom order fields, reordering)
+- Category management
+- Reviews management
+- Blog/Guides management
+- Promo codes
+- Payment methods
+- Social links
+- Notification bar
+- FAQs
+- Static pages
+- Take.app integration (view 10 most recent orders)
 
-### P0 (Critical) - ALL DONE
-- All core e-commerce functionality implemented
-- Admin panel complete with all features
+## Database Schema
 
-### P1 (Important)
-- [ ] Search functionality for products
-- [ ] Product stock/sold-out management improvements
+### Product
+- name, slug, description, image_url
+- category_id
+- variations: [{id, name, price, original_price}]
+- tags: ['Popular', 'Sale', 'New', 'Limited', 'Hot', 'Best Seller']
+- custom_fields: [{id, label, placeholder, required}]
+- sort_order, is_active, is_sold_out
 
-### P2 (Nice to have)
-- [ ] Flash sales/countdown timer
-- [ ] Combo deals section
-- [ ] Recent purchases ticker (social proof)
-- [ ] Email notifications
-- [ ] Analytics dashboard
+### Category
+- name, slug, image_url
 
-## Next Tasks
-1. Add product search functionality on homepage
-2. Add flash sale/promotional banners
-3. Consider adding recent purchases ticker for social proof
+### Review
+- customer_name, review_text, rating, created_at
+
+### BlogPost
+- title, slug, content, excerpt, image_url, is_published, created_at
+
+## What's Been Implemented
+
+### Feb 1, 2026
+- **Product Card Styling**: Added visible border outline and green glow/shadow effect on hover
+- **Admin Variant Editing**: Added ability to edit and reorder product variations in admin panel
+
+### Previous Work
+- Codebase migrated from gamerbolte/GamerNew repository
+- Take.app integration (view recent orders)
+- Customizable order forms per product
+- Blog page bug fixes (route ordering, ObjectId serialization)
+- Review management fixes (permanent deletion)
+- UI/UX improvements (scrollable best sellers, iOS zoom fix, etc.)
+- Site-wide search bar
+
+## Pending Issues
+
+### P0 - Deployment Blockers
+1. Hardcoded admin credentials in server.py → Move to ADMIN_USERNAME/ADMIN_PASSWORD env vars
+2. .env files not in .gitignore → Security risk
+3. Bloated requirements.txt → Clean unused AI/ML dependencies
+
+### P1 - Feature Requests
+- (None currently)
+
+### P2 - Stability
+- Full admin panel regression test needed
+
+## Future/Backlog
+- Recent purchases ticker (social proof)
+- Flash sales/promotional banners
+- Combo deals section
+- Analytics dashboard
+
+## 3rd Party Integrations
+- **Take.app**: REST API for viewing orders (requires TAKE_APP_API_KEY in backend/.env)
+
+## Key Files
+- `/app/backend/server.py` - FastAPI main application
+- `/app/backend/.env` - Backend environment variables
+- `/app/frontend/src/lib/api.js` - Axios API client
+- `/app/frontend/src/pages/admin/` - Admin panel pages
+- `/app/frontend/src/components/ProductCard.jsx` - Product card component
+
+## Known Issues
+- **FastAPI Route Ordering**: Static routes must be defined before dynamic routes to prevent capture
