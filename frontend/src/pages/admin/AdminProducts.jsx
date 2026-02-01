@@ -190,7 +190,39 @@ export default function AdminProducts() {
 
               <div className="space-y-3">
                 <Label>Pricing Variations</Label>
-                {formData.variations.length > 0 && <div className="space-y-2">{formData.variations.map((v) => <div key={v.id} className="flex items-center gap-2 bg-black p-2 rounded-lg text-sm"><span className="flex-1 text-white truncate">{v.name}</span><span className="text-gold-500">Rs {v.price}</span>{v.original_price && <span className="text-white/40 line-through hidden sm:inline">Rs {v.original_price}</span>}<Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveVariation(v.id)} className="text-red-400 hover:text-red-300 p-1"><X className="h-4 w-4" /></Button></div>)}</div>}
+                {formData.variations.length > 0 && (
+                  <div className="space-y-2">
+                    {formData.variations.map((v, index) => (
+                      <div key={v.id} className="flex items-center gap-2 bg-black p-2 rounded-lg text-sm">
+                        {/* Reorder buttons */}
+                        <div className="flex flex-col gap-0.5">
+                          <button type="button" onClick={() => handleMoveVariation(index, 'up')} disabled={index === 0} className="p-0.5 text-white/40 hover:text-gold-500 disabled:opacity-30 disabled:cursor-not-allowed"><ChevronUp className="h-3 w-3" /></button>
+                          <button type="button" onClick={() => handleMoveVariation(index, 'down')} disabled={index === formData.variations.length - 1} className="p-0.5 text-white/40 hover:text-gold-500 disabled:opacity-30 disabled:cursor-not-allowed"><ChevronDown className="h-3 w-3" /></button>
+                        </div>
+                        
+                        {editingVariationId === v.id ? (
+                          /* Edit mode */
+                          <>
+                            <Input value={editingVariationData.name} onChange={(e) => setEditingVariationData({ ...editingVariationData, name: e.target.value })} placeholder="Name" className="bg-black/50 border-gold-500/50 h-8 text-sm flex-1" />
+                            <Input type="number" value={editingVariationData.price} onChange={(e) => setEditingVariationData({ ...editingVariationData, price: e.target.value })} placeholder="Price" className="bg-black/50 border-gold-500/50 h-8 text-sm w-20" />
+                            <Input type="number" value={editingVariationData.original_price} onChange={(e) => setEditingVariationData({ ...editingVariationData, original_price: e.target.value })} placeholder="Orig." className="bg-black/50 border-gold-500/50 h-8 text-sm w-20 hidden sm:block" />
+                            <Button type="button" variant="ghost" size="sm" onClick={handleSaveVariation} className="text-green-400 hover:text-green-300 p-1"><Check className="h-4 w-4" /></Button>
+                            <Button type="button" variant="ghost" size="sm" onClick={handleCancelEditVariation} className="text-white/40 hover:text-white p-1"><X className="h-4 w-4" /></Button>
+                          </>
+                        ) : (
+                          /* View mode */
+                          <>
+                            <span className="flex-1 text-white truncate">{v.name}</span>
+                            <span className="text-gold-500">Rs {v.price}</span>
+                            {v.original_price && <span className="text-white/40 line-through hidden sm:inline">Rs {v.original_price}</span>}
+                            <Button type="button" variant="ghost" size="sm" onClick={() => handleEditVariation(v)} className="text-white/40 hover:text-gold-500 p-1"><Pencil className="h-3 w-3" /></Button>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveVariation(v.id)} className="text-red-400 hover:text-red-300 p-1"><X className="h-4 w-4" /></Button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                   <Input value={newVariation.name} onChange={(e) => setNewVariation({ ...newVariation, name: e.target.value })} placeholder="Plan name" className="bg-black border-white/20 col-span-2 lg:col-span-1" />
                   <Input type="number" value={newVariation.price} onChange={(e) => setNewVariation({ ...newVariation, price: e.target.value })} placeholder="Price" className="bg-black border-white/20" />
