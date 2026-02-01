@@ -22,8 +22,8 @@ export default function ProductCard({ product }) {
         boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.border = '2px solid #22c55e';
-        e.currentTarget.style.boxShadow = '0 0 30px rgba(34, 197, 94, 0.6), 0 0 60px rgba(34, 197, 94, 0.3), 0 8px 32px rgba(0,0,0,0.4)';
+        e.currentTarget.style.border = '2px solid #00ff55';
+        e.currentTarget.style.boxShadow = '0 0 20px #00ff55, 0 0 40px #00ff55, 0 0 60px rgba(0, 255, 85, 0.8), 0 0 80px rgba(0, 255, 85, 0.5), 0 0 100px rgba(0, 255, 85, 0.3)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.border = '2px solid rgba(255, 255, 255, 0.15)';
