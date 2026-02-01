@@ -25,6 +25,7 @@ export default function HomePage() {
   const [reviews, setReviews] = useState([]);
   const [blogPosts, setBlogPosts] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
+  const [bundles, setBundles] = useState([]);
   const [notificationBar, setNotificationBar] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -34,13 +35,14 @@ export default function HomePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productsRes, categoriesRes, reviewsRes, notifRes, blogRes, paymentRes] = await Promise.all([
+        const [productsRes, categoriesRes, reviewsRes, notifRes, blogRes, paymentRes, bundlesRes] = await Promise.all([
           productsAPI.getAll(),
           categoriesAPI.getAll(),
           reviewsAPI.getAll(),
           notificationBarAPI.get().catch(() => ({ data: null })),
           blogAPI.getAll().catch(() => ({ data: [] })),
           paymentMethodsAPI.getAll().catch(() => ({ data: [] })),
+          bundlesAPI.getAll().catch(() => ({ data: [] })),
         ]);
         setProducts(productsRes.data);
         setCategories(categoriesRes.data);
@@ -48,6 +50,7 @@ export default function HomePage() {
         setNotificationBar(notifRes.data);
         setBlogPosts(blogRes.data.slice(0, 3));
         setPaymentMethods(paymentRes.data);
+        setBundles(bundlesRes.data);
       } catch (error) {
         console.error('Error:', error);
       } finally {
