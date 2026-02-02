@@ -199,23 +199,30 @@ export const seoAPI = {
 
 // Trustpilot invitation utility
 export const sendTrustpilotInvitation = (orderData) => {
-  if (typeof window !== 'undefined' && window.tp) {
-    const invitation = {
-      recipientEmail: orderData.email,
-      recipientName: orderData.name,
-      referenceId: orderData.orderId,
-      source: 'InvitationScript',
-      productSkus: orderData.products?.map(p => p.sku) || [orderData.orderId],
-      products: orderData.products || [{
-        sku: orderData.orderId,
-        productUrl: `${window.location.origin}/product/${orderData.productSlug}`,
-        imageUrl: orderData.productImage,
-        name: orderData.productName,
-      }],
-    };
-    window.tp('createInvitation', invitation);
-    return true;
+  if (typeof window !== 'undefined' && typeof window.tp === 'function') {
+    try {
+      const invitation = {
+        recipientEmail: orderData.email,
+        recipientName: orderData.name,
+        referenceId: orderData.orderId,
+        source: 'InvitationScript',
+        productSkus: orderData.products?.map(p => p.sku) || [orderData.orderId],
+        products: orderData.products || [{
+          sku: orderData.orderId,
+          productUrl: `${window.location.origin}/product/${orderData.productSlug}`,
+          imageUrl: orderData.productImage,
+          name: orderData.productName,
+        }],
+      };
+      window.tp('createInvitation', invitation);
+      console.log('Trustpilot invitation sent:', invitation);
+      return true;
+    } catch (error) {
+      console.error('Trustpilot invitation error:', error);
+      return false;
+    }
   }
+  console.warn('Trustpilot not loaded. window.tp:', typeof window.tp);
   return false;
 };
 
