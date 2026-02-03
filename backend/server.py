@@ -74,9 +74,9 @@ async def rate_limit_middleware(request: Request, call_next):
     if request.url.path == "/health":
         return await call_next(request)
     
-    # More strict for login endpoints
+    # More relaxed for login endpoints (30 attempts per minute)
     if "/auth/login" in request.url.path:
-        if not rate_limit_check(client_ip, limit=10, window=60):
+        if not rate_limit_check(client_ip, limit=30, window=60):
             return fastapi.responses.JSONResponse(
                 status_code=429,
                 content={"detail": "Too many login attempts. Please try again later."}
