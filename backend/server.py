@@ -248,6 +248,7 @@ class Category(BaseModel):
 class FAQItemCreate(BaseModel):
     question: str
     answer: str
+    category: str = "General"
     sort_order: int = 0
 
 class FAQItem(BaseModel):
@@ -255,6 +256,7 @@ class FAQItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     question: str
     answer: str
+    category: str = "General"
     sort_order: int = 0
 
 class FAQReorderRequest(BaseModel):
