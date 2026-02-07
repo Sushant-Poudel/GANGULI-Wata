@@ -140,9 +140,25 @@ export default function AdminOrders() {
   const stats = {
     total: orders.length,
     pending: orders.filter(o => o.status === 'pending').length,
-    confirmed: orders.filter(o => o.status === 'confirmed').length,
-    completed: orders.filter(o => o.status === 'completed').length,
+    confirmed: orders.filter(o => o.status === 'Confirmed' || o.status === 'confirmed').length,
+    completed: orders.filter(o => o.status === 'Completed' || o.status === 'completed').length,
     cancelled: orders.filter(o => o.status === 'cancelled').length,
+  };
+
+  const handleCompleteOrder = async (order) => {
+    if (!window.confirm('Mark this order as completed? This will send an invoice email to the customer.')) return;
+    try {
+      await ordersAPI.complete(order.id);
+      toast.success('Order marked as completed! Invoice email sent.');
+      fetchOrders();
+    } catch (error) {
+      toast.error('Failed to complete order');
+      console.error(error);
+    }
+  };
+
+  const getBackendUrl = () => {
+    return process.env.REACT_APP_BACKEND_URL || '';
   };
 
   return (
