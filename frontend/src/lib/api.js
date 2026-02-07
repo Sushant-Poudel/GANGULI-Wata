@@ -102,8 +102,11 @@ export const seedAPI = {
 export const ordersAPI = {
   create: (data) => api.post('/orders/create', data),
   getAll: () => api.get('/orders'),
+  getOne: (orderId) => api.get(`/orders/${orderId}`),
   uploadPaymentScreenshot: (orderId, screenshotUrl, paymentMethod) =>
     api.post(`/orders/${orderId}/payment-screenshot`, { screenshot_url: screenshotUrl, payment_method: paymentMethod }),
+  complete: (orderId) => api.post(`/orders/${orderId}/complete`),
+  getInvoice: (orderId) => api.get(`/invoice/${orderId}`),
 };
 
 export const promoCodesAPI = {
