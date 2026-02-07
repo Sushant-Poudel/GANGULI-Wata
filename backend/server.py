@@ -640,6 +640,27 @@ async def upload_image(file: UploadFile = File(...), current_user: dict = Depend
 
     return {"url": f"/api/uploads/{filename}"}
 
+@api_router.post("/upload/payment")
+async def upload_payment_image(file: UploadFile = File(...)):
+    """Public endpoint for uploading payment screenshots"""
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, WebP, GIF allowed.")
+    
+    # Limit file size to 10MB
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 10MB allowed.")
+    
+    file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    filename = f"payment_{uuid.uuid4()}.{file_ext}"
+    file_path = UPLOADS_DIR / filename
+
+    with open(file_path, "wb") as buffer:
+        buffer.write(contents)
+
+    return {"url": f"/api/uploads/{filename}"}
+
 @api_router.get("/uploads/{filename}")
 async def get_uploaded_image(filename: str):
     file_path = UPLOADS_DIR / filename
