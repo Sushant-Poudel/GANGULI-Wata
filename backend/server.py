@@ -1385,21 +1385,113 @@ class PaymentScreenshotUpload(BaseModel):
 
 @api_router.post("/orders/{order_id}/payment-screenshot")
 async def upload_payment_screenshot(order_id: str, data: PaymentScreenshotUpload):
-    """Upload payment screenshot for an order"""
+    """Upload payment screenshot for an order - automatically marks as Confirmed"""
     order = await db.orders.find_one({"id": order_id})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Generate invoice URL
+    invoice_url = f"/invoice/{order_id}"
     
     await db.orders.update_one(
         {"id": order_id},
         {"$set": {
             "payment_screenshot": data.screenshot_url,
             "payment_method": data.payment_method,
-            "payment_uploaded_at": datetime.now(timezone.utc).isoformat()
+            "payment_uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "status": "Confirmed",
+            "invoice_url": invoice_url
         }}
     )
     
-    return {"message": "Payment screenshot uploaded", "order_id": order_id}
+    return {
+        "message": "Payment screenshot uploaded", 
+        "order_id": order_id,
+        "status": "Confirmed",
+        "invoice_url": invoice_url
+    }
+
+@api_router.post("/orders/{order_id}/complete")
+async def complete_order(order_id: str, current_user: dict = Depends(get_current_user)):
+    """Mark order as completed and send invoice email"""
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Update status to Completed
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {
+            "status": "Completed",
+            "completed_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Send invoice email to customer if email exists
+    customer_email = order.get("customer_email")
+    if customer_email:
+        try:
+            site_url = os.environ.get("SITE_URL", "https://gameshopnepal.com")
+            invoice_url = f"{site_url}/invoice/{order_id}"
+            trustpilot_url = "https://www.trustpilot.com/evaluate/gameshopnepal.com"
+            
+            subject = f"Your Order #{order_id[:8]} is Complete - GameShop Nepal"
+            html = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a1a; color: #fff;">
+                <div style="background: linear-gradient(135deg, #F5A623 0%, #D4920D 100%); padding: 30px; text-align: center;">
+                    <h1 style="margin: 0; color: #000; font-size: 28px;">Order Complete!</h1>
+                </div>
+                <div style="padding: 30px;">
+                    <p style="color: #ccc; font-size: 16px;">Hi {order.get('customer_name', 'Customer')},</p>
+                    <p style="color: #ccc; font-size: 16px;">Your order has been completed successfully!</p>
+                    
+                    <div style="background: #2a2a2a; border-radius: 10px; padding: 20px; margin: 20px 0;">
+                        <h2 style="color: #F5A623; margin-top: 0;">Order Summary</h2>
+                        <p style="color: #fff;"><strong>Order ID:</strong> #{order_id[:8]}</p>
+                        <p style="color: #fff;"><strong>Items:</strong> {order.get('items_text', 'N/A')}</p>
+                        <p style="color: #F5A623; font-size: 20px;"><strong>Total:</strong> Rs {order.get('total', 0):,.2f}</p>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{invoice_url}" style="display: inline-block; background: #F5A623; color: #000; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; margin-right: 10px;">
+                            View Invoice
+                        </a>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0; padding: 20px; background: #2a2a2a; border-radius: 10px;">
+                        <p style="color: #ccc; margin-bottom: 15px;">Enjoyed your experience? We'd love your feedback!</p>
+                        <a href="{trustpilot_url}" style="display: inline-block; background: #00b67a; color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                            ⭐ Leave a Review on Trustpilot
+                        </a>
+                    </div>
+                    
+                    <p style="color: #666; font-size: 14px; text-align: center; margin-top: 30px;">
+                        Thank you for shopping with GameShop Nepal!
+                    </p>
+                </div>
+            </div>
+            """
+            text = f"Order #{order_id[:8]} Complete!\n\nYour order has been completed.\nView Invoice: {invoice_url}\nLeave a Review: {trustpilot_url}"
+            
+            from email_service import send_email
+            send_email(customer_email, subject, html, text)
+        except Exception as e:
+            print(f"Failed to send invoice email: {e}")
+    
+    return {"message": "Order marked as completed", "order_id": order_id}
+
+@api_router.get("/invoice/{order_id}")
+async def get_invoice(order_id: str):
+    """Get invoice data for an order"""
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    return {
+        "order": order,
+        "invoice_number": f"INV-{order_id[:8].upper()}",
+        "generated_at": datetime.now(timezone.utc).isoformat()
+    }
 
 # ==================== NOTIFICATION BAR ====================
 
