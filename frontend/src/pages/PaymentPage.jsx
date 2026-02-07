@@ -84,9 +84,9 @@ export default function PaymentPage() {
 
     setIsSubmitting(true);
     try {
-      // Upload screenshot
+      // Upload screenshot using public endpoint
       setIsUploading(true);
-      const uploadRes = await uploadAPI.uploadImage(screenshot);
+      const uploadRes = await uploadAPI.uploadPaymentImage(screenshot);
       const screenshotUrl = uploadRes.data.url;
       setIsUploading(false);
 
