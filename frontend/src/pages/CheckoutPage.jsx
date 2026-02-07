@@ -101,12 +101,20 @@ export default function CheckoutPage() {
 
       const res = await ordersAPI.create(orderPayload);
       
-      // Redirect to our custom payment page
+      // Get first item details for payment page
+      const firstItem = cart[0];
+      
+      // Redirect to our custom payment page with all required data
       const params = new URLSearchParams({
         total: total.toFixed(2),
         items: cart.map(item => `${item.product.name} (${item.variation.name} x${item.quantity})`).join(', '),
         name: orderForm.customer_name,
-        phone: orderForm.customer_phone
+        phone: orderForm.customer_phone,
+        email: orderForm.customer_email || '',
+        product: firstItem?.product?.name || 'Order',
+        variation: firstItem?.variation?.name || '',
+        price: firstItem?.variation?.price?.toString() || '0',
+        qty: cart.reduce((sum, item) => sum + item.quantity, 0).toString()
       });
       
       clearCart();
