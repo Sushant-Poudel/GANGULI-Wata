@@ -58,7 +58,11 @@ export default function AdminAnalytics() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [chartDays]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
 
   const formatCurrency = (amount) => {
     if (amount >= 100000) return `Rs ${(amount / 100000).toFixed(1)}L`;
