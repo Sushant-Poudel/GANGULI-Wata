@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Check, Loader2, AlertTriangle, Copy, ChevronRight, Phone, Building2, FileText, MessageCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
@@ -37,15 +37,7 @@ export default function PaymentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeQRIndex, setActiveQRIndex] = useState(0); // For multiple QR codes
 
-  useEffect(() => {
-    fetchPaymentMethods();
-    // If URL params are missing data, fetch from API
-    if (!searchParams.get('product') || searchParams.get('total') === '0') {
-      fetchOrderData();
-    }
-  }, []);
-
-  const fetchOrderData = async () => {
+  const fetchOrderData = useCallback(async () => {
     try {
       const res = await ordersAPI.getOne(orderId);
       const order = res.data;
