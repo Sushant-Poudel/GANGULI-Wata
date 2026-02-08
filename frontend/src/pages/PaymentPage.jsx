@@ -58,7 +58,15 @@ export default function PaymentPage() {
     } catch (error) {
       console.error('Error fetching order:', error);
     }
-  };
+  }, [orderId]);
+
+  useEffect(() => {
+    fetchPaymentMethods();
+    // If URL params are missing data, fetch from API
+    if (!searchParams.get('product') || searchParams.get('total') === '0') {
+      fetchOrderData();
+    }
+  }, [searchParams, fetchOrderData]);
 
   const fetchPaymentMethods = async () => {
     try {
