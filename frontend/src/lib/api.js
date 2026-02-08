@@ -106,6 +106,7 @@ export const ordersAPI = {
   uploadPaymentScreenshot: (orderId, screenshotUrl, paymentMethod) =>
     api.post(`/orders/${orderId}/payment-screenshot`, { screenshot_url: screenshotUrl, payment_method: paymentMethod }),
   complete: (orderId) => api.post(`/orders/${orderId}/complete`),
+  delete: (orderId) => api.delete(`/orders/${orderId}`),
   getInvoice: (orderId) => api.get(`/invoice/${orderId}`),
 };
 

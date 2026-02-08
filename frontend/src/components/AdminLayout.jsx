@@ -1,33 +1,62 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, FolderOpen, Star, FileText, Share2, LogOut, Home, Menu, X, HelpCircle, Bell, BookOpen, CreditCard, Ticket, Settings, Send, BarChart3, Users, ShoppingCart } from 'lucide-react';
+import { LayoutDashboard, Package, FolderOpen, Star, FileText, Share2, LogOut, Home, Menu, X, HelpCircle, Bell, BookOpen, CreditCard, Ticket, Settings, Send, BarChart3, Users, ShoppingCart, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { authAPI } from '@/lib/api';
 
 const LOGO_URL = "https://customer-assets.emergentagent.com/job_8ec93a6a-4f80-4dde-b760-4bc71482fa44/artifacts/4uqt5osn_Staff.zip%20-%201.png";
 
 const navItems = [
-  { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
-  { path: '/admin/orders', label: 'Orders', icon: ShoppingCart },
-  { path: '/admin/customers', label: 'Customers', icon: Users },
-  { path: '/admin/categories', label: 'Categories', icon: FolderOpen },
-  { path: '/admin/products', label: 'Products', icon: Package },
-  { path: '/admin/promo-codes', label: 'Promo Codes', icon: Ticket },
-  { path: '/admin/pricing', label: 'Pricing Settings', icon: Settings },
-  { path: '/admin/reviews', label: 'Reviews', icon: Star },
-  { path: '/admin/faqs', label: 'FAQs', icon: HelpCircle },
-  { path: '/admin/pages', label: 'Pages', icon: FileText },
-  { path: '/admin/social-links', label: 'Social Links', icon: Share2 },
-  { path: '/admin/payment-methods', label: 'Payment Methods', icon: CreditCard },
-  { path: '/admin/notification-bar', label: 'Notification Bar', icon: Bell },
-  { path: '/admin/blog', label: 'Blog / Guides', icon: BookOpen },
-  { path: '/admin/trustpilot', label: 'Trustpilot', icon: Send },
+  { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: null },
+  { path: '/admin/analytics', label: 'Analytics', icon: BarChart3, permission: 'view_analytics' },
+  { path: '/admin/orders', label: 'Orders', icon: ShoppingCart, permission: 'view_orders' },
+  { path: '/admin/customers', label: 'Customers', icon: Users, permission: 'view_customers' },
+  { path: '/admin/staff', label: 'Staff Management', icon: Shield, permission: 'manage_admins' },
+  { path: '/admin/categories', label: 'Categories', icon: FolderOpen, permission: 'view_categories' },
+  { path: '/admin/products', label: 'Products', icon: Package, permission: 'view_products' },
+  { path: '/admin/promo-codes', label: 'Promo Codes', icon: Ticket, permission: 'view_settings' },
+  { path: '/admin/pricing', label: 'Pricing Settings', icon: Settings, permission: 'view_settings' },
+  { path: '/admin/reviews', label: 'Reviews', icon: Star, permission: 'view_reviews' },
+  { path: '/admin/faqs', label: 'FAQs', icon: HelpCircle, permission: 'view_faqs' },
+  { path: '/admin/pages', label: 'Pages', icon: FileText, permission: 'view_pages' },
+  { path: '/admin/social-links', label: 'Social Links', icon: Share2, permission: 'view_settings' },
+  { path: '/admin/payment-methods', label: 'Payment Methods', icon: CreditCard, permission: 'view_settings' },
+  { path: '/admin/notification-bar', label: 'Notification Bar', icon: Bell, permission: 'view_settings' },
+  { path: '/admin/blog', label: 'Blog / Guides', icon: BookOpen, permission: 'view_blog' },
+  { path: '/admin/trustpilot', label: 'Trustpilot', icon: Send, permission: 'view_settings' },
 ];
 
 export default function AdminLayout({ children, title }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [visibleNavItems, setVisibleNavItems] = useState([]);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await authAPI.getMe();
+        setUser(res.data);
+        
+        // Filter nav items based on permissions
+        const userPermissions = res.data.permissions || [];
+        const isMainAdmin = res.data.is_main_admin || userPermissions.includes('all');
+        
+        const filtered = navItems.filter(item => {
+          if (!item.permission) return true; // No permission required (e.g., Dashboard)
+          if (isMainAdmin) return true; // Main admin sees everything
+          return userPermissions.includes(item.permission);
+        });
+        
+        setVisibleNavItems(filtered);
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        setVisibleNavItems([navItems[0]]); // Show only dashboard on error
+      }
+    };
+    fetchUser();
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
@@ -59,7 +88,7 @@ export default function AdminLayout({ children, title }) {
 
         <nav className="flex-1 py-4 lg:py-6 overflow-y-auto">
           <ul className="space-y-1 px-3">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
               return (

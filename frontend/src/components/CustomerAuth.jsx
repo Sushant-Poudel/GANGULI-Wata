@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Mail, KeyRound, Loader2 } from 'lucide-react';
+import { Mail, KeyRound, Loader2, Phone } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -13,6 +13,7 @@ export default function CustomerAuthModal({ isOpen, onClose, onSuccess }) {
   const [step, setStep] = useState('email'); // 'email' or 'otp'
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,12 +23,17 @@ export default function CustomerAuthModal({ isOpen, onClose, onSuccess }) {
       toast.error('Please enter your email');
       return;
     }
+    if (!whatsappNumber) {
+      toast.error('Please enter your WhatsApp number');
+      return;
+    }
 
     setLoading(true);
     try {
       const response = await axios.post(`${API_URL}/auth/customer/send-otp`, {
         email: email.toLowerCase().trim(),
-        name: name || email.split('@')[0]
+        name: name || email.split('@')[0],
+        whatsapp_number: whatsappNumber
       });
       
       // Check if debug mode returned OTP
@@ -104,7 +110,14 @@ export default function CustomerAuthModal({ isOpen, onClose, onSuccess }) {
           <DialogDescription className="text-white/60">
             {step === 'email' 
               ? 'Get instant access to your order history and wishlist'
-              : `We've sent a 6-digit code to ${email}`
+              : (
+                <>
+                  <p>We've sent a 6-digit code to your email address: <span className="text-gold-500 font-semibold">{email}</span></p>
+                  <p className="text-xs text-yellow-500 mt-2 bg-yellow-500/10 px-3 py-2 rounded border border-yellow-500/20">
+                    ⚠️ Debug Mode: Check your email for OTP or check console/toast notification
+                  </p>
+                </>
+              )
             }
           </DialogDescription>
         </DialogHeader>
@@ -141,6 +154,24 @@ export default function CustomerAuthModal({ isOpen, onClose, onSuccess }) {
               </div>
             </div>
 
+            <div>
+              <Label htmlFor="whatsapp" className="text-white">WhatsApp Number *</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-3 h-5 w-5 text-white/40" />
+                <Input
+                  id="whatsapp"
+                  type="tel"
+                  placeholder="9812345678"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  className="bg-black border-white/20 text-white pl-10"
+                  required
+                  data-testid="customer-whatsapp-input"
+                />
+              </div>
+              <p className="text-xs text-white/40 mt-1">Enter your 10-digit WhatsApp number</p>
+            </div>
+
             <Button
               type="submit"
               className="w-full bg-gold-500 hover:bg-gold-600 text-black font-bold"
@@ -150,19 +181,22 @@ export default function CustomerAuthModal({ isOpen, onClose, onSuccess }) {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
+                  Sending OTP to Email...
                 </>
               ) : (
                 <>
                   <Mail className="mr-2 h-4 w-4" />
-                  Send OTP
+                  Send OTP to Email
                 </>
               )}
             </Button>
 
-            <p className="text-xs text-white/40 text-center">
-              No password needed! We'll send you a one-time code.
-            </p>
+            <div className="text-xs text-white/40 text-center space-y-2">
+              <p>No password needed! We'll send a one-time code to your email address.</p>
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded px-3 py-2 text-yellow-500">
+                ⚠️ <span className="font-semibold">Debug Mode Active:</span> OTP will be shown in toast notification
+              </div>
+            </div>
           </form>
         ) : (
           <form onSubmit={handleVerifyOTP} className="space-y-4">

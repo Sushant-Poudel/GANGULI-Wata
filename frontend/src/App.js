@@ -15,6 +15,7 @@ import TermsPage from "@/pages/TermsPage";
 import BlogPage from "@/pages/BlogPage";
 import BlogPostPage from "@/pages/BlogPostPage";
 import CustomerAccountPage from "@/pages/CustomerAccountPage";
+import OrderTrackingPage from "@/pages/OrderTrackingPage";
 import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminProducts from "@/pages/admin/AdminProducts";
@@ -32,6 +33,7 @@ import AdminTrustpilot from "@/pages/admin/AdminTrustpilot";
 import AdminAnalytics from "@/pages/admin/AdminAnalytics";
 import AdminCustomers from "@/pages/admin/AdminCustomers";
 import AdminOrders from "@/pages/admin/AdminOrders";
+import AdminStaff from "@/pages/admin/AdminStaff";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import "@/App.css";
 
@@ -55,24 +57,26 @@ function App() {
                   <Route path="/blog" element={<BlogPage />} />
                   <Route path="/blog/:slug" element={<BlogPostPage />} />
                   <Route path="/account" element={<CustomerAccountPage />} />
+                  <Route path="/track-order" element={<OrderTrackingPage />} />
 
                   <Route path="/admin/login" element={<AdminLogin />} />
                   <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-                  <Route path="/admin/analytics" element={<ProtectedRoute><AdminAnalytics /></ProtectedRoute>} />
-                  <Route path="/admin/products" element={<ProtectedRoute><AdminProducts /></ProtectedRoute>} />
-                  <Route path="/admin/categories" element={<ProtectedRoute><AdminCategories /></ProtectedRoute>} />
-                  <Route path="/admin/reviews" element={<ProtectedRoute><AdminReviews /></ProtectedRoute>} />
-                  <Route path="/admin/faqs" element={<ProtectedRoute><AdminFAQs /></ProtectedRoute>} />
-                  <Route path="/admin/pages" element={<ProtectedRoute><AdminPages /></ProtectedRoute>} />
-                  <Route path="/admin/social-links" element={<ProtectedRoute><AdminSocialLinks /></ProtectedRoute>} />
-                  <Route path="/admin/payment-methods" element={<ProtectedRoute><AdminPaymentMethods /></ProtectedRoute>} />
-                  <Route path="/admin/notification-bar" element={<ProtectedRoute><AdminNotificationBar /></ProtectedRoute>} />
-                  <Route path="/admin/blog" element={<ProtectedRoute><AdminBlog /></ProtectedRoute>} />
-                  <Route path="/admin/promo-codes" element={<ProtectedRoute><AdminPromoCodes /></ProtectedRoute>} />
-                  <Route path="/admin/pricing" element={<ProtectedRoute><AdminPricingSettings /></ProtectedRoute>} />
-                  <Route path="/admin/trustpilot" element={<ProtectedRoute><AdminTrustpilot /></ProtectedRoute>} />
-                  <Route path="/admin/customers" element={<ProtectedRoute><AdminCustomers /></ProtectedRoute>} />
-                  <Route path="/admin/orders" element={<ProtectedRoute><AdminOrders /></ProtectedRoute>} />
+                  <Route path="/admin/analytics" element={<ProtectedRoute requiredPermission="view_analytics"><AdminAnalytics /></ProtectedRoute>} />
+                  <Route path="/admin/products" element={<ProtectedRoute requiredPermission="view_products"><AdminProducts /></ProtectedRoute>} />
+                  <Route path="/admin/categories" element={<ProtectedRoute requiredPermission="view_categories"><AdminCategories /></ProtectedRoute>} />
+                  <Route path="/admin/reviews" element={<ProtectedRoute requiredPermission="view_reviews"><AdminReviews /></ProtectedRoute>} />
+                  <Route path="/admin/faqs" element={<ProtectedRoute requiredPermission="view_faqs"><AdminFAQs /></ProtectedRoute>} />
+                  <Route path="/admin/pages" element={<ProtectedRoute requiredPermission="view_pages"><AdminPages /></ProtectedRoute>} />
+                  <Route path="/admin/social-links" element={<ProtectedRoute requiredPermission="view_settings"><AdminSocialLinks /></ProtectedRoute>} />
+                  <Route path="/admin/payment-methods" element={<ProtectedRoute requiredPermission="view_settings"><AdminPaymentMethods /></ProtectedRoute>} />
+                  <Route path="/admin/notification-bar" element={<ProtectedRoute requiredPermission="view_settings"><AdminNotificationBar /></ProtectedRoute>} />
+                  <Route path="/admin/blog" element={<ProtectedRoute requiredPermission="view_blog"><AdminBlog /></ProtectedRoute>} />
+                  <Route path="/admin/promo-codes" element={<ProtectedRoute requiredPermission="view_settings"><AdminPromoCodes /></ProtectedRoute>} />
+                  <Route path="/admin/pricing" element={<ProtectedRoute requiredPermission="view_settings"><AdminPricingSettings /></ProtectedRoute>} />
+                  <Route path="/admin/trustpilot" element={<ProtectedRoute requiredPermission="view_settings"><AdminTrustpilot /></ProtectedRoute>} />
+                  <Route path="/admin/customers" element={<ProtectedRoute requiredPermission="view_customers"><AdminCustomers /></ProtectedRoute>} />
+                  <Route path="/admin/orders" element={<ProtectedRoute requiredPermission="view_orders"><AdminOrders /></ProtectedRoute>} />
+                  <Route path="/admin/staff" element={<ProtectedRoute requiredPermission="manage_admins"><AdminStaff /></ProtectedRoute>} />
                 </Routes>
               </BrowserRouter>
               <Toaster position="top-right" richColors />

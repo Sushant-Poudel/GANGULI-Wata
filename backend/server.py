@@ -18,6 +18,7 @@ import secrets
 import shutil
 import httpx
 from email_service import send_email, get_order_confirmation_email, get_order_status_update_email, get_welcome_email
+from imgbb_service import upload_to_imgbb
 
 
 ROOT_DIR = Path(__file__).parent
@@ -135,6 +136,7 @@ class CustomerProfile(BaseModel):
 class OTPRequest(BaseModel):
     email: str
     name: Optional[str] = None
+    whatsapp_number: Optional[str] = None
 
 class OTPVerify(BaseModel):
     email: str
@@ -317,23 +319,59 @@ def create_token(user_id: str) -> str:
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "gsnadmin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "gsnadmin")
 
+def hash_password(password: str) -> str:
+    """Simple password hashing"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         token = credentials.credentials
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("user_id")
+        
+        if not user_id:
+            logger.error(f"No user_id in token payload: {payload}")
+            raise HTTPException(status_code=401, detail="Invalid token: no user_id")
+        
+        # Check if it's the new admin system
+        admin = await db.admins.find_one({"_id": user_id})
+        if admin and admin.get("is_active"):
+            return {
+                "id": admin["_id"],
+                "username": admin.get("username"),
+                "email": admin.get("email"),
+                "name": admin.get("name"),
+                "role": admin.get("role"),
+                "permissions": admin.get("permissions", []),
+                "is_admin": True,
+                "is_main_admin": admin.get("role") == "main_admin"
+            }
+        
+        # Fallback to old admin system
         if user_id == "admin-fixed":
             return {
                 "id": "admin-fixed",
                 "email": ADMIN_USERNAME,
                 "name": "Admin",
-                "is_admin": True
+                "is_admin": True,
+                "is_main_admin": True,
+                "permissions": ["all"]
             }
+        
+        logger.error(f"User not found for user_id: {user_id}")
         raise HTTPException(status_code=401, detail="Invalid user")
     except jwt.ExpiredSignatureError:
+        logger.error("Token expired")
         raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        logger.error(f"Invalid token: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid token")
+
+def check_permission(user: dict, required_permission: str) -> bool:
+    """Check if user has required permission"""
+    if user.get("permissions") and "all" in user["permissions"]:
+        return True
+    return required_permission in user.get("permissions", [])
 
 # ==================== AUTH ROUTES ====================
 
@@ -343,6 +381,33 @@ async def register(user_data: UserCreate):
 
 @api_router.post("/auth/login")
 async def login(credentials: UserLogin):
+    # Try new admin system first
+    admin = await db.admins.find_one({"username": credentials.email})
+    if admin:
+        hashed_password = hash_password(credentials.password)
+        if admin["password"] == hashed_password and admin.get("is_active"):
+            # Update last login
+            await db.admins.update_one(
+                {"_id": admin["_id"]},
+                {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}}
+            )
+            
+            token = create_token(admin["_id"])
+            return {
+                "token": token,
+                "user": {
+                    "id": admin["_id"],
+                    "username": admin.get("username"),
+                    "email": admin.get("email"),
+                    "name": admin.get("name"),
+                    "role": admin.get("role"),
+                    "permissions": admin.get("permissions", []),
+                    "is_admin": True,
+                    "is_main_admin": admin.get("role") == "main_admin"
+                }
+            }
+    
+    # Fallback to old admin system
     if credentials.email == ADMIN_USERNAME and credentials.password == ADMIN_PASSWORD:
         token = create_token("admin-fixed")
         return {
@@ -351,7 +416,9 @@ async def login(credentials: UserLogin):
                 "id": "admin-fixed",
                 "email": ADMIN_USERNAME,
                 "name": "Admin",
-                "is_admin": True
+                "is_admin": True,
+                "is_main_admin": True,
+                "permissions": ["all"]
             }
         }
     raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -360,6 +427,102 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
+
+
+# ==================== ADMIN MANAGEMENT ROUTES ====================
+
+@api_router.get("/admins")
+async def get_all_admins(current_user: dict = Depends(get_current_user)):
+    """Get all admins - only main admin can see this"""
+    if not current_user.get("is_main_admin"):
+        raise HTTPException(status_code=403, detail="Only main admin can view all admins")
+    
+    admins = await db.admins.find({}, {"password": 0}).sort("created_at", -1).to_list(100)
+    for admin in admins:
+        admin.pop("_id", None)
+        admin["id"] = admin.get("_id", admin.get("id"))
+    return admins
+
+@api_router.post("/admins")
+async def create_admin(admin_data: dict, current_user: dict = Depends(get_current_user)):
+    """Create new staff admin - only main admin can do this"""
+    if not current_user.get("is_main_admin"):
+        raise HTTPException(status_code=403, detail="Only main admin can create staff admins")
+    
+    # Check if username already exists
+    existing = await db.admins.find_one({"username": admin_data["username"]})
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    new_admin = {
+        "_id": f"admin_{admin_data['username']}",
+        "username": admin_data["username"],
+        "password": hash_password(admin_data["password"]),
+        "email": admin_data.get("email", ""),
+        "name": admin_data.get("name", admin_data["username"]),
+        "role": "staff",
+        "is_active": True,
+        "permissions": admin_data.get("permissions", ["view_dashboard", "view_orders"]),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": current_user["id"]
+    }
+    
+    await db.admins.insert_one(new_admin)
+    new_admin.pop("password")
+    return {"message": "Staff admin created successfully", "admin": new_admin}
+
+@api_router.put("/admins/{admin_id}")
+async def update_admin(admin_id: str, admin_data: dict, current_user: dict = Depends(get_current_user)):
+    """Update admin permissions - only main admin can do this"""
+    if not current_user.get("is_main_admin"):
+        raise HTTPException(status_code=403, detail="Only main admin can update admins")
+    
+    update_data = {}
+    if "permissions" in admin_data:
+        update_data["permissions"] = admin_data["permissions"]
+    if "is_active" in admin_data:
+        update_data["is_active"] = admin_data["is_active"]
+    if "name" in admin_data:
+        update_data["name"] = admin_data["name"]
+    if "email" in admin_data:
+        update_data["email"] = admin_data["email"]
+    if "password" in admin_data and admin_data["password"]:
+        update_data["password"] = hash_password(admin_data["password"])
+    
+    result = await db.admins.update_one(
+        {"_id": admin_id},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    
+    return {"message": "Admin updated successfully"}
+
+@api_router.delete("/admins/{admin_id}")
+async def delete_admin(admin_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete staff admin - only main admin can do this"""
+    if not current_user.get("is_main_admin"):
+        raise HTTPException(status_code=403, detail="Only main admin can delete admins")
+    
+    # Cannot delete main admin
+    if admin_id == "admin_main":
+        raise HTTPException(status_code=400, detail="Cannot delete main admin")
+    
+    result = await db.admins.delete_one({"_id": admin_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    
+    return {"message": "Admin deleted successfully"}
+
+@api_router.get("/permissions")
+async def get_permissions(current_user: dict = Depends(get_current_user)):
+    """Get all available permissions"""
+    if not current_user.get("is_main_admin"):
+        raise HTTPException(status_code=403, detail="Only main admin can view permissions")
+    
+    permissions = await db.permissions.find({}, {"_id": 0}).to_list(100)
+    return permissions
 
 
 # ==================== CUSTOMER AUTH ROUTES ====================
@@ -381,11 +544,19 @@ async def send_customer_otp(request: OTPRequest):
             "email": email,
             "name": request.name or email.split("@")[0],
             "phone": None,
+            "whatsapp_number": request.whatsapp_number if hasattr(request, 'whatsapp_number') else None,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "last_login": None
         }
         await db.customers.insert_one(customer_data)
         logger.info(f"New customer created: {email}")
+    else:
+        # Update whatsapp_number if provided
+        if hasattr(request, 'whatsapp_number') and request.whatsapp_number:
+            await db.customers.update_one(
+                {"email": email},
+                {"$set": {"whatsapp_number": request.whatsapp_number}}
+            )
     
     # Generate OTP
     otp = generate_otp()
@@ -642,7 +813,7 @@ async def upload_image(file: UploadFile = File(...), current_user: dict = Depend
 
 @api_router.post("/upload/payment")
 async def upload_payment_image(file: UploadFile = File(...)):
-    """Public endpoint for uploading payment screenshots"""
+    """Public endpoint for uploading payment screenshots - using ImgBB"""
     allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, WebP, GIF allowed.")
@@ -652,14 +823,28 @@ async def upload_payment_image(file: UploadFile = File(...)):
     if len(contents) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large. Max 10MB allowed.")
     
-    file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-    filename = f"payment_{uuid.uuid4()}.{file_ext}"
-    file_path = UPLOADS_DIR / filename
-
-    with open(file_path, "wb") as buffer:
-        buffer.write(contents)
-
-    return {"url": f"/api/uploads/{filename}"}
+    try:
+        # Generate unique filename
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+        filename = f"payment_{uuid.uuid4()}.{file_ext}"
+        
+        # Upload to ImgBB
+        result = await upload_to_imgbb(
+            image_bytes=contents,
+            filename=filename
+        )
+        
+        logger.info(f"Payment screenshot uploaded to ImgBB: {filename}")
+        
+        return {
+            "url": result['url'],  # Direct image URL for display
+            "image_id": result['image_id'],
+            "delete_url": result['delete_url']
+        }
+    
+    except Exception as e:
+        logger.error(f"Failed to upload payment screenshot: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload screenshot: {str(e)}")
 
 @api_router.get("/uploads/{filename}")
 async def get_uploaded_image(filename: str):
@@ -711,6 +896,14 @@ async def get_products(category_id: Optional[str] = None, active_only: bool = Tr
         query["is_active"] = True
 
     products = await db.products.find(query, {"_id": 0}).sort([("sort_order", 1), ("created_at", -1)]).to_list(1000)
+    
+    # Convert datetime fields to ISO strings
+    for product in products:
+        if "created_at" in product and isinstance(product["created_at"], datetime):
+            product["created_at"] = product["created_at"].isoformat()
+        if "updated_at" in product and isinstance(product["updated_at"], datetime):
+            product["updated_at"] = product["updated_at"].isoformat()
+    
     return products
 
 @api_router.get("/products/search/advanced")
@@ -809,6 +1002,13 @@ async def get_product(product_id: str):
         product = await db.products.find_one({"id": product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Convert datetime fields to ISO strings
+    if "created_at" in product and isinstance(product["created_at"], datetime):
+        product["created_at"] = product["created_at"].isoformat()
+    if "updated_at" in product and isinstance(product["updated_at"], datetime):
+        product["updated_at"] = product["updated_at"].isoformat()
+    
     return product
 
 @api_router.get("/products/{product_id}/related")
@@ -847,6 +1047,13 @@ async def get_related_products(product_id: str, limit: int = 4):
             "is_active": True
         }, {"_id": 0}).limit(limit - len(related)).to_list(limit - len(related))
         related.extend(others)
+    
+    # Convert datetime fields for all products
+    for prod in related:
+        if "created_at" in prod and isinstance(prod["created_at"], datetime):
+            prod["created_at"] = prod["created_at"].isoformat()
+        if "updated_at" in prod and isinstance(prod["updated_at"], datetime):
+            prod["updated_at"] = prod["updated_at"].isoformat()
     
     return related[:limit]
 
@@ -922,6 +1129,14 @@ async def delete_product(product_id: str, current_user: dict = Depends(get_curre
 @api_router.get("/reviews", response_model=List[Review])
 async def get_reviews():
     reviews = await db.reviews.find({}, {"_id": 0}).sort("review_date", -1).to_list(1000)
+    
+    # Convert datetime fields to ISO strings
+    for review in reviews:
+        if "created_at" in review and isinstance(review["created_at"], datetime):
+            review["created_at"] = review["created_at"].isoformat()
+        if "review_date" in review and isinstance(review["review_date"], datetime):
+            review["review_date"] = review["review_date"].isoformat()
+    
     return reviews
 
 @api_router.post("/reviews", response_model=Review)
@@ -1184,10 +1399,24 @@ async def update_page(page_key: str, title: str, content: str, current_user: dic
 
 # ==================== SOCIAL LINK ROUTES ====================
 
-@api_router.get("/social-links", response_model=List[SocialLink])
+@api_router.get("/social-links")
 async def get_social_links():
-    links = await db.social_links.find({}, {"_id": 0}).to_list(100)
-    return links
+    """Get social links - returns single document with platform URLs"""
+    links_doc = await db.social_links.find_one({}, {"_id": 0})
+    if not links_doc:
+        return {
+            "whatsapp": "",
+            "facebook": "",
+            "instagram": "",
+            "tiktok": "",
+            "twitter": ""
+        }
+    
+    # Convert datetime to string if present
+    if "updated_at" in links_doc:
+        links_doc["updated_at"] = str(links_doc["updated_at"])
+    
+    return links_doc
 
 @api_router.post("/social-links", response_model=SocialLink)
 async def create_social_link(link_data: SocialLinkCreate, current_user: dict = Depends(get_current_user)):
@@ -1293,6 +1522,7 @@ async def create_order(order_data: CreateOrderRequest):
         "customer_email": order_data.customer_email,
         "items": [item.model_dump() for item in order_data.items],
         "total_amount": order_data.total_amount,
+        "total": order_data.total_amount,  # Also save as 'total' for invoice compatibility
         "remark": order_data.remark,
         "items_text": items_text,
         "status": "pending",
@@ -1329,7 +1559,8 @@ class PaymentMethod(BaseModel):
     id: Optional[str] = None
     name: str
     image_url: str  # Logo/icon
-    qr_code_url: Optional[str] = None  # QR code image
+    qr_code_url: Optional[str] = None  # Legacy single QR code (kept for backwards compatibility)
+    qr_codes: Optional[List[dict]] = []  # Multiple QR codes: [{"url": "...", "label": "QR 1"}, ...]
     merchant_name: Optional[str] = None
     phone_number: Optional[str] = None
     instructions: Optional[str] = None  # Payment instructions text
@@ -1338,7 +1569,10 @@ class PaymentMethod(BaseModel):
 
 @api_router.get("/payment-methods")
 async def get_payment_methods():
-    methods = await db.payment_methods.find({"is_active": True}).sort("sort_order", 1).to_list(100)
+    # Check both 'enabled' and 'is_active' for backwards compatibility
+    methods = await db.payment_methods.find({
+        "$or": [{"enabled": True}, {"is_active": True}]
+    }).sort([("sort_order", 1), ("display_order", 1)]).to_list(100)
     for m in methods:
         m.pop("_id", None)
     return methods
@@ -1479,6 +1713,29 @@ async def complete_order(order_id: str, current_user: dict = Depends(get_current
             print(f"Failed to send invoice email: {e}")
     
     return {"message": "Order marked as completed", "order_id": order_id}
+
+
+@api_router.delete("/orders/{order_id}")
+async def delete_order(order_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete an order - requires delete_orders permission"""
+    # Check permission
+    if not check_permission(current_user, 'delete_orders'):
+        raise HTTPException(status_code=403, detail="You don't have permission to delete orders")
+    
+    # Check if order exists
+    order = await db.orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Delete the order
+    result = await db.orders.delete_one({"id": order_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=500, detail="Failed to delete order")
+    
+    logger.info(f"Order deleted by {current_user.get('username')}: {order_id}")
+    
+    return {"message": "Order deleted successfully", "order_id": order_id}
 
 @api_router.get("/invoice/{order_id}")
 async def get_invoice(order_id: str):

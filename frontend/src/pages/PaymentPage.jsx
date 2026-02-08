@@ -35,6 +35,7 @@ export default function PaymentPage() {
   const [screenshotPreview, setScreenshotPreview] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeQRIndex, setActiveQRIndex] = useState(0); // For multiple QR codes
 
   useEffect(() => {
     fetchPaymentMethods();
@@ -263,7 +264,38 @@ See invoice ${fullInvoiceUrl}`;
                   <span className="text-white font-semibold">Scan QR code to make payment</span>
                 </div>
                 
-                {selectedMethod.qr_code_url ? (
+                {/* Multiple QR Code Tabs */}
+                {selectedMethod.qr_codes && selectedMethod.qr_codes.length > 0 ? (
+                  <div>
+                    {/* QR Tabs */}
+                    {selectedMethod.qr_codes.length > 1 && (
+                      <div className="flex gap-2 mb-4">
+                        {selectedMethod.qr_codes.map((qr, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setActiveQRIndex(index)}
+                            className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
+                              activeQRIndex === index
+                                ? 'bg-gold-500 text-black'
+                                : 'bg-white/10 text-white hover:bg-white/20'
+                            }`}
+                          >
+                            {qr.label || `QR ${index + 1}`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Active QR Code */}
+                    <div className="bg-white rounded-xl p-4 max-w-[200px] mx-auto">
+                      <img 
+                        src={selectedMethod.qr_codes[activeQRIndex].url} 
+                        alt={`Payment QR Code ${activeQRIndex + 1}`}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                ) : selectedMethod.qr_code_url ? (
                   <div className="bg-white rounded-xl p-4 max-w-[200px] mx-auto">
                     <img 
                       src={selectedMethod.qr_code_url} 

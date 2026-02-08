@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, Search, Package, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Mail, Phone, User, Calendar, FileText, Image, ExternalLink } from 'lucide-react';
+import { RefreshCw, Search, Package, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Mail, Phone, User, Calendar, FileText, Image, ExternalLink, Trash2 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -135,6 +135,24 @@ export default function AdminOrders() {
   const toggleExpand = (orderId) => {
     setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
   };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await ordersAPI.delete(orderId);
+      toast.success('Order deleted successfully');
+      
+      // Refresh orders list
+      await fetchOrders();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete order');
+      console.error('Delete order error:', error);
+    }
+  };
+
 
   // Calculate stats
   const stats = {
@@ -281,6 +299,18 @@ export default function AdminOrders() {
                       >
                         Update Status
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteOrder(order.id);
+                        }}
+                        className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border-red-500/30"
+                        data-testid={`delete-order-btn-${order.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                       {expandedOrderId === order.id ? (
                         <ChevronUp className="h-5 w-5 text-white/40" />
                       ) : (
@@ -341,13 +371,13 @@ export default function AdminOrders() {
                         <div className="bg-black/50 rounded-lg p-4">
                           <div className="flex items-start gap-4">
                             <a 
-                              href={`${getBackendUrl()}${order.payment_screenshot}`}
+                              href={order.payment_screenshot.startsWith('http') ? order.payment_screenshot : `${getBackendUrl()}${order.payment_screenshot}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="block"
                             >
                               <img 
-                                src={`${getBackendUrl()}${order.payment_screenshot}`}
+                                src={order.payment_screenshot.startsWith('http') ? order.payment_screenshot : `${getBackendUrl()}${order.payment_screenshot}`}
                                 alt="Payment Screenshot"
                                 className="max-w-[200px] max-h-[200px] rounded-lg border border-white/20 hover:border-gold-500 transition-colors"
                               />
@@ -360,7 +390,7 @@ export default function AdminOrders() {
                                 <span className="text-white">Uploaded:</span> {formatDate(order.payment_uploaded_at)}
                               </p>
                               <a 
-                                href={`${getBackendUrl()}${order.payment_screenshot}`}
+                                href={order.payment_screenshot.startsWith('http') ? order.payment_screenshot : `${getBackendUrl()}${order.payment_screenshot}`}
                                 download
                                 className="inline-flex items-center gap-1 text-gold-500 hover:text-gold-400 text-sm"
                               >

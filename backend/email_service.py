@@ -86,7 +86,7 @@ def get_order_confirmation_email(order_data: dict) -> tuple:
             
             <!-- Order Confirmation -->
             <div style="padding: 30px 0;">
-                <h2 style="color: #F5A623; margin: 0 0 20px;">Order Confirmed! 🎉</h2>
+                <h2 style="color: #F5A623; margin: 0 0 20px;">Order Placed Successfully! 🎉</h2>
                 <p style="color: #cccccc; line-height: 1.6;">
                     Thank you for your order! We're processing it and you'll receive your digital products shortly.
                 </p>

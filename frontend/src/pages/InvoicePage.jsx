@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { Loader2, Download, Printer, CheckCircle } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { Loader2, Download, CheckCircle, Clock, Package, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ordersAPI } from '@/lib/api';
 
@@ -32,166 +32,217 @@ export default function InvoicePage() {
     window.print();
   };
 
+  const handleDownload = () => {
+    window.print();
+  };
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gold-500" />
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
 
   if (error || !invoice) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Invoice Not Found</h1>
-          <p className="text-gray-600">The invoice you're looking for doesn't exist.</p>
+          <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+          <h1 className="text-2xl font-heading font-bold text-white mb-2">Invoice Not Found</h1>
+          <p className="text-muted-foreground mb-6">The invoice you're looking for doesn't exist.</p>
+          <Link to="/">
+            <Button variant="outline">Return to Home</Button>
+          </Link>
         </div>
       </div>
     );
   }
 
   const order = invoice.order;
-  const subtotal = order.subtotal || order.total || 0;
+  const subtotal = order.subtotal || order.total || order.total_amount || 0;
   const serviceCharge = order.service_charge || 0;
   const tax = order.tax || 0;
-  const total = order.total || 0;
+  const total = order.total || order.total_amount || 0;
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'completed': return 'text-green-500';
+      case 'confirmed': return 'text-primary';
+      case 'pending': return 'text-yellow-500';
+      case 'cancelled': return 'text-red-500';
+      default: return 'text-muted-foreground';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'completed': return <CheckCircle className="h-5 w-5" />;
+      case 'confirmed': return <CreditCard className="h-5 w-5" />;
+      default: return <Clock className="h-5 w-5" />;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 print:py-0 print:bg-white">
-      {/* Print/Download buttons - hidden when printing */}
-      <div className="max-w-3xl mx-auto px-4 mb-4 print:hidden">
-        <div className="flex justify-end gap-2">
-          <Button onClick={handlePrint} variant="outline" className="bg-white">
-            <Printer className="h-4 w-4 mr-2" />
-            Print Invoice
-          </Button>
+    <div className="min-h-screen bg-black py-8 print:py-0">
+      {/* Header Actions - Hidden on Print */}
+      <div className="max-w-4xl mx-auto px-4 mb-6 print:hidden">
+        <div className="flex justify-between items-center">
+          <Link to="/">
+            <Button variant="ghost" className="text-white hover:text-primary">
+              ← Back to Home
+            </Button>
+          </Link>
+          <div className="flex gap-2">
+            <Button onClick={handleDownload} variant="outline" className="bg-secondary border-white/10">
+              <Download className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
+            <Button onClick={handlePrint} className="bg-primary text-black hover:bg-primary/90">
+              Print Invoice
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Invoice Container */}
-      <div className="max-w-3xl mx-auto bg-white shadow-lg print:shadow-none" id="invoice">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-8 py-6">
+      <div className="max-w-4xl mx-auto bg-card border border-white/10 print:border-0 print:shadow-none rounded-lg overflow-hidden" id="invoice">
+        
+        {/* Header Section */}
+        <div className="bg-gradient-to-r from-primary/20 via-primary/10 to-transparent border-b border-white/10 px-8 py-8">
           <div className="flex justify-between items-start">
             <div>
-              <img src={LOGO_URL} alt="GameShop Nepal" className="h-10 mb-2" />
-              <p className="text-gray-400 text-sm">Digital Products at Best Prices</p>
+              <img src={LOGO_URL} alt="GameShop Nepal" className="h-12 mb-3" />
+              <h1 className="text-3xl font-heading font-bold text-white mb-1">INVOICE</h1>
+              <p className="text-muted-foreground">Digital Products Marketplace</p>
             </div>
             <div className="text-right">
-              <h1 className="text-2xl font-bold text-gold-500">INVOICE</h1>
-              <p className="text-gray-400 text-sm mt-1">{invoice.invoice_number}</p>
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/50 border ${order.status === 'Completed' ? 'border-green-500/50' : 'border-primary/50'} mb-3`}>
+                {getStatusIcon(order.status)}
+                <span className={`font-semibold ${getStatusColor(order.status)}`}>
+                  {order.status || 'Pending'}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">Invoice #</p>
+              <p className="text-lg font-bold text-white font-mono">{order.id?.substring(0, 12).toUpperCase()}</p>
             </div>
           </div>
         </div>
 
-        {/* Status Badge */}
-        <div className="px-8 py-4 bg-green-50 border-b flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
-            <span className="text-green-700 font-semibold">
-              {order.status === 'Completed' ? 'Payment Completed' : order.status === 'Confirmed' ? 'Payment Confirmed' : order.status}
-            </span>
-          </div>
-          <span className="text-gray-500 text-sm">
-            {new Date(order.created_at).toLocaleDateString('en-US', { 
-              year: 'numeric', month: 'long', day: 'numeric' 
-            })}
-          </span>
-        </div>
-
-        {/* Order & Customer Info */}
-        <div className="px-8 py-6 grid grid-cols-2 gap-8 border-b">
+        {/* Company & Customer Info */}
+        <div className="grid md:grid-cols-2 gap-8 px-8 py-8 bg-black/20">
           <div>
-            <h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Bill To</h3>
-            <p className="font-semibold text-gray-800">{order.customer_name || 'Customer'}</p>
-            {order.customer_phone && <p className="text-gray-600 text-sm">{order.customer_phone}</p>}
-            {order.customer_email && <p className="text-gray-600 text-sm">{order.customer_email}</p>}
+            <h3 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">From</h3>
+            <div className="text-white">
+              <p className="font-bold text-lg mb-1">GameShop Nepal</p>
+              <p className="text-muted-foreground text-sm">Kathmandu, Nepal</p>
+              <p className="text-muted-foreground text-sm">support@gameshopnepal.com</p>
+              <p className="text-muted-foreground text-sm">+977 9743488871</p>
+            </div>
           </div>
-          <div className="text-right">
-            <h3 className="text-gray-500 text-xs uppercase tracking-wider mb-2">Order Details</h3>
-            <p className="text-gray-800"><span className="text-gray-500">Order ID:</span> #{orderId.slice(0, 8).toUpperCase()}</p>
-            <p className="text-gray-800"><span className="text-gray-500">Payment:</span> {order.payment_method || 'N/A'}</p>
+          <div>
+            <h3 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Bill To</h3>
+            <div className="text-white">
+              <p className="font-bold text-lg mb-1">{order.customer_name || 'Customer'}</p>
+              <p className="text-muted-foreground text-sm">{order.customer_email || 'N/A'}</p>
+              <p className="text-muted-foreground text-sm">{order.customer_phone || 'N/A'}</p>
+              <p className="text-muted-foreground text-sm mt-3">
+                <span className="text-white font-semibold">Date:</span> {new Date(order.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Items Table */}
         <div className="px-8 py-6">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="text-left py-3 text-gray-500 text-xs uppercase tracking-wider">Item</th>
-                <th className="text-center py-3 text-gray-500 text-xs uppercase tracking-wider">Qty</th>
-                <th className="text-right py-3 text-gray-500 text-xs uppercase tracking-wider">Price</th>
-                <th className="text-right py-3 text-gray-500 text-xs uppercase tracking-wider">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.items && order.items.length > 0 ? (
-                order.items.map((item, index) => (
-                  <tr key={index} className="border-b border-gray-100">
-                    <td className="py-4">
-                      <p className="font-medium text-gray-800">{item.product_name}</p>
-                      {item.variation_name && (
-                        <p className="text-gray-500 text-sm">{item.variation_name}</p>
+          <h3 className="text-sm font-semibold text-primary uppercase tracking-wider mb-4">Order Items</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Item</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Qty</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Price</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {order.items?.map((item, idx) => (
+                  <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <td className="py-4 px-4">
+                      <p className="font-semibold text-white">{item.name}</p>
+                      {item.variation && (
+                        <p className="text-sm text-muted-foreground">{item.variation}</p>
                       )}
                     </td>
-                    <td className="text-center text-gray-600">{item.quantity || 1}</td>
-                    <td className="text-right text-gray-600">Rs {(item.price || 0).toLocaleString()}</td>
-                    <td className="text-right font-medium text-gray-800">Rs {((item.price || 0) * (item.quantity || 1)).toLocaleString()}</td>
+                    <td className="text-center py-4 px-4 text-white">{item.quantity}</td>
+                    <td className="text-right py-4 px-4 text-white">Rs {item.price?.toFixed(2)}</td>
+                    <td className="text-right py-4 px-4 font-semibold text-white">Rs {(item.price * item.quantity)?.toFixed(2)}</td>
                   </tr>
-                ))
-              ) : (
-                <tr className="border-b border-gray-100">
-                  <td className="py-4 font-medium text-gray-800" colSpan="4">
-                    {order.items_text || 'Order items'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        {/* Totals */}
-        <div className="px-8 py-6 bg-gray-50">
-          <div className="max-w-xs ml-auto space-y-2">
-            <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span>
-              <span>Rs {subtotal.toLocaleString()}</span>
-            </div>
-            {serviceCharge > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Service Charge</span>
-                <span>Rs {serviceCharge.toLocaleString()}</span>
+        {/* Totals Section */}
+        <div className="px-8 py-6 bg-black/20 border-t border-white/10">
+          <div className="max-w-md ml-auto">
+            <div className="space-y-3">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>Rs {subtotal.toFixed(2)}</span>
               </div>
-            )}
-            {tax > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Tax (5%)</span>
-                <span>Rs {tax.toLocaleString()}</span>
+              {serviceCharge > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Service Charge</span>
+                  <span>Rs {serviceCharge.toFixed(2)}</span>
+                </div>
+              )}
+              {tax > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Tax</span>
+                  <span>Rs {tax.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="h-px bg-white/10 my-3"></div>
+              <div className="flex justify-between items-center">
+                <span className="text-xl font-heading font-bold text-white">Total Amount</span>
+                <span className="text-2xl font-heading font-bold text-primary">Rs {total.toFixed(2)}</span>
               </div>
-            )}
-            <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-200">
-              <span>Total</span>
-              <span className="text-gold-600">Rs {total.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-6 border-t text-center">
-          <p className="text-gray-500 text-sm mb-2">Thank you for your business!</p>
-          <p className="text-gray-400 text-xs">
-            GameShop Nepal | gameshopnepal.buy@gmail.com | www.gameshopnepal.com
-          </p>
+        <div className="px-8 py-6 bg-gradient-to-b from-transparent to-black/20 border-t border-white/5">
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">Thank you for your business!</p>
+            <p className="text-xs text-muted-foreground">
+              For any queries, contact us at <span className="text-primary">support@gameshopnepal.com</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-4">
+              This is a computer-generated invoice. No signature required.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Print Styles */}
       <style>{`
         @media print {
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .print\\:hidden { display: none !important; }
+          body {
+            background: white !important;
+          }
+          .print\\:hidden {
+            display: none !important;
+          }
+          .print\\:border-0 {
+            border: 0 !important;
+          }
+          .print\\:shadow-none {
+            box-shadow: none !important;
+          }
         }
       `}</style>
     </div>

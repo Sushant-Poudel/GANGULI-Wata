@@ -4,6 +4,7 @@ import { ArrowLeft, Check, ShoppingCart, Loader2, AlertCircle, Ticket, X, Plus, 
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
+import SEO from '@/components/SEO';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
@@ -231,6 +232,12 @@ export default function ProductPage() {
 
   return (
     <div className="min-h-screen bg-black">
+      <SEO 
+        title={`${product.name} | GameShop Nepal`}
+        description={product.description || `Buy ${product.name} at the best price in Nepal. Instant delivery guaranteed.`}
+        image={product.image_url}
+        type="product"
+      />
       <Navbar />
       <main className="pt-16 lg:pt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 lg:py-4">

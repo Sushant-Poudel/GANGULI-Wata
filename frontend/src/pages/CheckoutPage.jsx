@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ShoppingBag, Trash2, Loader2, Ticket, X } from 'lucide-react';
 import Navbar from '@/components/Navbar';
@@ -9,14 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { useCart } from '@/components/Cart';
+import { useCustomer } from '@/components/CustomerAccount';
 import { useLanguage } from '@/components/Language';
 import { ordersAPI, promoCodesAPI, settingsAPI } from '@/lib/api';
-import { useEffect } from 'react';
 
 export default function CheckoutPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { cart, removeFromCart, clearCart, getCartTotal } = useCart();
+  const { customer } = useCustomer();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderForm, setOrderForm] = useState({ customer_name: '', customer_phone: '', customer_email: '', remark: '' });
@@ -28,6 +29,18 @@ export default function CheckoutPage() {
   
   // Pricing settings
   const [pricingSettings, setPricingSettings] = useState({ service_charge: 0, tax_percentage: 0, tax_label: 'Tax' });
+
+  // Auto-fill form for logged-in users
+  useEffect(() => {
+    if (customer) {
+      setOrderForm(prev => ({
+        ...prev,
+        customer_name: customer.name || '',
+        customer_email: customer.email || '',
+        customer_phone: customer.whatsapp_number || customer.phone || ''
+      }));
+    }
+  }, [customer]);
 
   useEffect(() => {
     const fetchSettings = async () => {

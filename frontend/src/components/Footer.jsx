@@ -18,10 +18,15 @@ const DiscordIcon = () => (
 );
 
 export default function Footer() {
-  const [socialLinks, setSocialLinks] = useState([]);
+  const [socialLinks, setSocialLinks] = useState({});
 
   useEffect(() => {
-    socialLinksAPI.getAll().then(res => setSocialLinks(res.data)).catch(() => {});
+    socialLinksAPI.getAll()
+      .then(res => {
+        // API now returns object with platform names as keys
+        setSocialLinks(res.data || {});
+      })
+      .catch(() => {});
   }, []);
 
   const getIcon = (platform) => {
@@ -33,6 +38,11 @@ export default function Footer() {
     if (name?.includes('discord')) return <DiscordIcon />;
     return null;
   };
+
+  // Convert object to array of {platform, url} for rendering
+  const socialLinksArray = Object.entries(socialLinks)
+    .filter(([key, value]) => value && key !== 'updated_at' && key !== '_id')
+    .map(([platform, url]) => ({ platform, url }));
 
   return (
     <footer className="bg-black border-t border-white/10" data-testid="footer">
@@ -61,8 +71,8 @@ export default function Footer() {
             <h3 className="font-heading text-sm lg:text-lg font-semibold text-white uppercase tracking-wider mb-3 lg:mb-4">Connect</h3>
             <p className="text-white/60 text-xs lg:text-sm mb-3 lg:mb-4 break-all">support@gameshopnepal.com</p>
             <div className="flex items-center space-x-3 lg:space-x-4">
-              {socialLinks.map((link) => (
-                <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="text-white/60 hover:text-gold-500 transition-colors" data-testid={`social-link-${link.platform.toLowerCase()}`}>
+              {socialLinksArray.map((link) => (
+                <a key={link.platform} href={link.url} target="_blank" rel="noopener noreferrer" className="text-white/60 hover:text-gold-500 transition-colors" data-testid={`social-link-${link.platform.toLowerCase()}`}>
                   {getIcon(link.platform)}
                 </a>
               ))}
