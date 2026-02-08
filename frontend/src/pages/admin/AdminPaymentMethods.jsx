@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, CreditCard, QrCode, Phone, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, CreditCard, QrCode, Phone, FileText, X } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ const emptyMethod = {
   name: '', 
   image_url: '', 
   qr_code_url: '',
+  qr_codes: [], // Multiple QR codes support
   merchant_name: '',
   phone_number: '',
   instructions: '',
@@ -27,7 +28,7 @@ export default function AdminPaymentMethods() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMethod, setEditingMethod] = useState(null);
   const [formData, setFormData] = useState(emptyMethod);
-  const [isUploading, setIsUploading] = useState({ logo: false, qr: false });
+  const [isUploading, setIsUploading] = useState({ logo: false, qr: false, qrIndex: -1 });
 
   const fetchMethods = async () => {
     try { 
@@ -45,10 +46,16 @@ export default function AdminPaymentMethods() {
   const handleOpenDialog = (method = null) => {
     if (method) { 
       setEditingMethod(method); 
+      // Migrate old single QR to array if needed
+      let qrCodes = method.qr_codes || [];
+      if (qrCodes.length === 0 && method.qr_code_url) {
+        qrCodes = [{ url: method.qr_code_url, label: 'QR Code 1' }];
+      }
       setFormData({ 
         name: method.name, 
         image_url: method.image_url || '', 
         qr_code_url: method.qr_code_url || '',
+        qr_codes: qrCodes,
         merchant_name: method.merchant_name || '',
         phone_number: method.phone_number || '',
         instructions: method.instructions || '',
@@ -81,18 +88,83 @@ export default function AdminPaymentMethods() {
     }
   };
 
+  // Handle QR code upload for multiple QR codes
+  const handleQRUpload = async (e, index) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setIsUploading(prev => ({ ...prev, qr: true, qrIndex: index }));
+    
+    try {
+      const res = await uploadAPI.uploadImage(file);
+      const fullUrl = `${process.env.REACT_APP_BACKEND_URL}${res.data.url}`;
+      
+      setFormData(prev => {
+        const newQrCodes = [...prev.qr_codes];
+        newQrCodes[index] = { ...newQrCodes[index], url: fullUrl };
+        return { ...prev, qr_codes: newQrCodes };
+      });
+      toast.success('QR Code uploaded!');
+    } catch (error) {
+      toast.error('Failed to upload QR code');
+    } finally {
+      setIsUploading(prev => ({ ...prev, qr: false, qrIndex: -1 }));
+    }
+  };
+
+  // Add new QR code slot
+  const addQRCode = () => {
+    setFormData(prev => ({
+      ...prev,
+      qr_codes: [...prev.qr_codes, { url: '', label: `QR Code ${prev.qr_codes.length + 1}` }]
+    }));
+  };
+
+  // Remove QR code
+  const removeQRCode = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      qr_codes: prev.qr_codes.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Update QR code label
+  const updateQRLabel = (index, label) => {
+    setFormData(prev => {
+      const newQrCodes = [...prev.qr_codes];
+      newQrCodes[index] = { ...newQrCodes[index], label };
+      return { ...prev, qr_codes: newQrCodes };
+    });
+  };
+
+  // Update QR code URL manually
+  const updateQRUrl = (index, url) => {
+    setFormData(prev => {
+      const newQrCodes = [...prev.qr_codes];
+      newQrCodes[index] = { ...newQrCodes[index], url };
+      return { ...prev, qr_codes: newQrCodes };
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.image_url) { 
       toast.error('Name and logo are required'); 
       return; 
     }
+    
+    // Set first QR as qr_code_url for backward compatibility
+    const submitData = {
+      ...formData,
+      qr_code_url: formData.qr_codes.length > 0 ? formData.qr_codes[0].url : formData.qr_code_url
+    };
+    
     try {
       if (editingMethod) { 
-        await paymentMethodsAPI.update(editingMethod.id, formData); 
+        await paymentMethodsAPI.update(editingMethod.id, submitData); 
         toast.success('Payment method updated!'); 
       } else { 
-        await paymentMethodsAPI.create(formData); 
+        await paymentMethodsAPI.create(submitData); 
         toast.success('Payment method created!'); 
       }
       setIsDialogOpen(false);
@@ -111,6 +183,14 @@ export default function AdminPaymentMethods() {
     } catch (error) { 
       toast.error('Error deleting payment method'); 
     }
+  };
+
+  // Count total QR codes for a method
+  const getQRCount = (method) => {
+    if (method.qr_codes && method.qr_codes.length > 0) {
+      return method.qr_codes.filter(qr => qr.url).length;
+    }
+    return method.qr_code_url ? 1 : 0;
   };
 
   return (
@@ -152,9 +232,9 @@ export default function AdminPaymentMethods() {
                       <Phone className="h-3 w-3" /> {method.phone_number}
                     </p>
                   )}
-                  {method.qr_code_url && (
+                  {getQRCount(method) > 0 && (
                     <p className="text-green-400 text-xs flex items-center gap-1 mt-1">
-                      <QrCode className="h-3 w-3" /> QR configured
+                      <QrCode className="h-3 w-3" /> {getQRCount(method)} QR code{getQRCount(method) > 1 ? 's' : ''} configured
                     </p>
                   )}
                   {!method.is_active && <span className="text-red-400 text-xs">Inactive</span>}
@@ -222,34 +302,85 @@ export default function AdminPaymentMethods() {
                 )}
               </div>
 
-              {/* QR Code Upload */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <QrCode className="h-4 w-4 text-gold-500" />
-                  QR Code Image
-                </Label>
-                <div className="flex gap-3 items-center">
-                  <Input 
-                    value={formData.qr_code_url} 
-                    onChange={(e) => setFormData({ ...formData, qr_code_url: e.target.value })} 
-                    className="bg-black border-white/20 flex-1" 
-                    placeholder="https://... or upload" 
-                  />
-                  <label className="cursor-pointer">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={(e) => handleImageUpload(e, 'qr_code_url')} 
-                      className="hidden" 
-                    />
-                    <Button type="button" variant="outline" className="border-gold-500 text-gold-500" disabled={isUploading.qr}>
-                      {isUploading.qr ? 'Uploading...' : 'Upload'}
-                    </Button>
-                  </label>
+              {/* Multiple QR Codes Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <QrCode className="h-4 w-4 text-gold-500" />
+                    QR Codes
+                  </Label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={addQRCode}
+                    className="border-gold-500 text-gold-500 hover:bg-gold-500/10"
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Add QR
+                  </Button>
                 </div>
-                {formData.qr_code_url && (
-                  <div className="mt-2 bg-white rounded-lg p-3 max-w-[150px]">
-                    <img src={formData.qr_code_url} alt="QR Code" className="w-full" />
+                
+                {formData.qr_codes.length === 0 ? (
+                  <div className="border border-dashed border-white/20 rounded-lg p-4 text-center">
+                    <QrCode className="h-8 w-8 mx-auto text-white/20 mb-2" />
+                    <p className="text-white/40 text-sm">No QR codes added yet</p>
+                    <p className="text-white/30 text-xs mt-1">Click "Add QR" to add payment QR codes</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {formData.qr_codes.map((qr, index) => (
+                      <div key={index} className="border border-white/10 rounded-lg p-3 bg-black/20">
+                        <div className="flex items-center justify-between mb-2">
+                          <Input
+                            value={qr.label}
+                            onChange={(e) => updateQRLabel(index, e.target.value)}
+                            className="bg-black border-white/20 text-sm h-8 w-40"
+                            placeholder="QR Label"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeQRCode(index)}
+                            className="text-red-400 hover:text-red-500 hover:bg-red-500/10 p-1 h-8 w-8"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        <div className="flex gap-2 items-center">
+                          <Input 
+                            value={qr.url} 
+                            onChange={(e) => updateQRUrl(index, e.target.value)} 
+                            className="bg-black border-white/20 flex-1 text-sm" 
+                            placeholder="QR code URL or upload" 
+                          />
+                          <label className="cursor-pointer">
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={(e) => handleQRUpload(e, index)} 
+                              className="hidden" 
+                            />
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              size="sm"
+                              className="border-gold-500 text-gold-500" 
+                              disabled={isUploading.qr && isUploading.qrIndex === index}
+                            >
+                              {isUploading.qr && isUploading.qrIndex === index ? '...' : 'Upload'}
+                            </Button>
+                          </label>
+                        </div>
+                        
+                        {qr.url && (
+                          <div className="mt-2 bg-white rounded-lg p-2 max-w-[100px]">
+                            <img src={qr.url} alt={qr.label} className="w-full" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
