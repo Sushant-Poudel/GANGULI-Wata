@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { Heart, X, Bell, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,7 @@ export function WishlistProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const visitorId = getVisitorId();
 
-  const fetchWishlist = async () => {
+  const fetchWishlist = useCallback(async () => {
     try {
       const res = await wishlistAPI.get(visitorId);
       setWishlist(res.data || []);
@@ -36,11 +36,11 @@ export function WishlistProvider({ children }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [visitorId]);
 
   useEffect(() => {
     fetchWishlist();
-  }, []);
+  }, [fetchWishlist]);
 
   const addToWishlist = async (productId, variationId = null) => {
     try {
