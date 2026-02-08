@@ -76,9 +76,7 @@ function TimeBlock({ value, label }) {
 
 // Flash Sale Badge for product cards
 export function FlashSaleBadge({ endTime, small = false }) {
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
-
-  function calculateTimeLeft() {
+  const calculateTimeLeft = useCallback(() => {
     const end = new Date(endTime).getTime();
     const now = new Date().getTime();
     const difference = end - now;
@@ -95,7 +93,9 @@ export function FlashSaleBadge({ endTime, small = false }) {
       minutes,
       expired: false
     };
-  }
+  }, [endTime]);
+
+  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -103,7 +103,7 @@ export function FlashSaleBadge({ endTime, small = false }) {
     }, 60000); // Update every minute for badge
 
     return () => clearInterval(timer);
-  }, [endTime]);
+  }, [calculateTimeLeft]);
 
   if (timeLeft.expired) {
     return null;
