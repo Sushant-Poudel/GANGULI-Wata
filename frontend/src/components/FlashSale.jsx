@@ -1,10 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Clock, Zap } from 'lucide-react';
 
 export function FlashSaleTimer({ endTime, label = 'FLASH SALE' }) {
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
-
-  function calculateTimeLeft() {
+  const calculateTimeLeft = useCallback(() => {
     const end = new Date(endTime).getTime();
     const now = new Date().getTime();
     const difference = end - now;
@@ -20,7 +18,9 @@ export function FlashSaleTimer({ endTime, label = 'FLASH SALE' }) {
       seconds: Math.floor((difference % (1000 * 60)) / 1000),
       expired: false
     };
-  }
+  }, [endTime]);
+
+  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -28,7 +28,7 @@ export function FlashSaleTimer({ endTime, label = 'FLASH SALE' }) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [endTime]);
+  }, [calculateTimeLeft]);
 
   if (timeLeft.expired) {
     return null;
