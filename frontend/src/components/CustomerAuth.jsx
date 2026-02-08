@@ -270,7 +270,7 @@ export function useCustomerAuth() {
   const [customer, setCustomer] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useState(() => {
+  useEffect(() => {
     const token = localStorage.getItem('customer_token');
     const customerInfo = localStorage.getItem('customer_info');
     
