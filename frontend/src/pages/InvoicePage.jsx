@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Loader2, Download, CheckCircle, Clock, Package, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,21 +12,21 @@ export default function InvoicePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchInvoice();
-  }, [orderId]);
-
-  const fetchInvoice = async () => {
+  const fetchInvoice = useCallback(async () => {
     try {
       const res = await ordersAPI.getInvoice(orderId);
       setInvoice(res.data);
-    } catch (error) {
-      console.error('Error:', error);
+    } catch (err) {
+      console.error('Error:', err);
       setError('Invoice not found');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [orderId]);
+
+  useEffect(() => {
+    fetchInvoice();
+  }, [fetchInvoice]);
 
   const handlePrint = () => {
     window.print();
