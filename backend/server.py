@@ -565,9 +565,15 @@ async def get_permissions(current_user: dict = Depends(get_current_user)):
         ]
         
         # Insert default permissions
-        await db.permissions.insert_many(default_permissions)
-        permissions = default_permissions
+        for perm in default_permissions:
+            await db.permissions.update_one(
+                {"id": perm["id"]},
+                {"$set": perm},
+                upsert=True
+            )
+        
         logger.info("Default permissions seeded")
+        permissions = default_permissions
     
     return permissions
 
