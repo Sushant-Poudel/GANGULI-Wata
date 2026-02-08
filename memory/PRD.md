@@ -7,24 +7,24 @@ Build a premium, modern, dark-themed e-commerce website for digital goods, simil
 - **Backend**: FastAPI, Python, Motor (async MongoDB driver)
 - **Frontend**: React, Tailwind CSS, react-router-dom, lucide-react, axios
 - **Database**: MongoDB
-- **Authentication**: JWT (hardcoded credentials - needs migration to env vars)
+- **Authentication**: JWT (Admin) + OTP-based (Customer)
 
 ## Core Features
 
 ### Public Website
-- Homepage with customer reviews in sliding marquee
+- Homepage with Trustpilot reviews and customer testimonials
 - Product grid with category filtering and search
 - Product pages with variations, rich-text descriptions
 - Blog/Guides section
-- Payment methods display
-- Trust & Safety section
+- Payment methods display with QR codes
+- Customer authentication via Email OTP
 
 ### Admin Panel (/admin)
-- **Credentials**: gsnadmin / gsnadmin (needs to move to env vars)
+- **Credentials**: gsnadmin / gsnadmin (stored in backend/.env)
 - Dashboard overview
 - Product management (CRUD, variations, custom order fields, reordering)
 - Category management
-- Reviews management
+- Reviews management (+ Trustpilot sync)
 - Blog/Guides management
 - Promo codes
 - Payment methods
@@ -32,7 +32,7 @@ Build a premium, modern, dark-themed e-commerce website for digital goods, simil
 - Notification bar
 - FAQs
 - Static pages
-- Take.app integration (view 10 most recent orders)
+- Order management
 
 ## Database Schema
 
@@ -42,60 +42,60 @@ Build a premium, modern, dark-themed e-commerce website for digital goods, simil
 - variations: [{id, name, price, original_price}]
 - tags: ['Popular', 'Sale', 'New', 'Limited', 'Hot', 'Best Seller']
 - custom_fields: [{id, label, placeholder, required}]
-- sort_order, is_active, is_sold_out
+- sort_order, is_active, is_sold_out, flash_sale_end, flash_sale_label
 
-### Category
-- name, slug, image_url
+### Order
+- order_id, customer_details, items, total_amount
+- status: 'pending' | 'confirmed' | 'completed'
+- payment_screenshot_url, invoice_url
 
-### Review
-- customer_name, review_text, rating, created_at
+### FAQ
+- question, answer, category, sort_order
 
-### BlogPost
-- title, slug, content, excerpt, image_url, is_published, created_at
+### Customer
+- email, name, whatsapp_number, otp
 
 ## What's Been Implemented
 
-### Feb 1, 2026
-- **Product Card Styling**: Added visible border outline and green glow/shadow effect on hover
-- **Admin Variant Editing**: Added ability to edit and reorder product variations in admin panel
+### Feb 8, 2026
+- ✅ **Critical Fix**: Resolved blank black screen bug (CustomerAuth.jsx useState→useEffect)
+- ✅ **Verified**: JWT_SECRET is static in backend/.env (deployment ready)
+- ✅ **Verified**: Admin login working with credentials
+- ✅ **Verified**: Homepage rendering with products and reviews
 
-### Previous Work
-- Codebase migrated from gamerbolte/GamerNew repository
-- Take.app integration (view recent orders)
-- Customizable order forms per product
-- Blog page bug fixes (route ordering, ObjectId serialization)
-- Review management fixes (permanent deletion)
-- UI/UX improvements (scrollable best sellers, iOS zoom fix, etc.)
-- Site-wide search bar
+### Previous Migrations
+- Multiple codebase replacements (GamerNew → Yobro → broo → Yessir → gangbro)
+- Data preserved and restored after each migration
 
-## Pending Issues
+## Pending Tasks
 
-### P0 - Deployment Blockers
-1. Hardcoded admin credentials in server.py → Move to ADMIN_USERNAME/ADMIN_PASSWORD env vars
-2. .env files not in .gitignore → Security risk
-3. Bloated requirements.txt → Clean unused AI/ML dependencies
+### P0 - Critical (Lost in last code swap)
+1. **Checkout & Invoicing Flow** - WhatsApp redirect, payment screenshot upload, invoice generation, email notifications
+2. **Product Variation Editing** - Admin panel feature to edit/reorder variations
 
-### P1 - Feature Requests
-- (None currently)
+### P1 - High Priority
+3. **FAQ Enhancement** - Category grouping and search bar
 
-### P2 - Stability
-- Full admin panel regression test needed
-
-## Future/Backlog
-- Recent purchases ticker (social proof)
-- Flash sales/promotional banners
-- Combo deals section
-- Analytics dashboard
+### P2 - Future/Backlog
+- Live purchase ticker (social proof)
+- Bundle Deals section
+- Loyalty/Rewards Program
+- Referral System
+- Order Tracking Page
+- Sales Analytics Dashboard
 
 ## 3rd Party Integrations
-- **Take.app**: REST API for viewing orders (requires TAKE_APP_API_KEY in backend/.env)
+- **Trustpilot**: Review sync (requires Business Unit ID)
+- **Take.app**: Order syncing (API key configured)
+- **Gmail SMTP**: Customer OTP emails (configured in backend/.env)
+- **ImgBB**: Payment screenshot uploads
 
 ## Key Files
 - `/app/backend/server.py` - FastAPI main application
-- `/app/backend/.env` - Backend environment variables
-- `/app/frontend/src/lib/api.js` - Axios API client
+- `/app/backend/.env` - Backend environment variables (JWT_SECRET, SMTP, etc.)
+- `/app/frontend/src/components/CustomerAuth.jsx` - Customer login modal
+- `/app/frontend/src/pages/PaymentPage.jsx` - Checkout flow
 - `/app/frontend/src/pages/admin/` - Admin panel pages
-- `/app/frontend/src/components/ProductCard.jsx` - Product card component
 
 ## Known Issues
 - **FastAPI Route Ordering**: Static routes must be defined before dynamic routes to prevent capture
