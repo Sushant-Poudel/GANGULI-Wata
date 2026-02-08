@@ -9,8 +9,11 @@ import os
 
 logger = logging.getLogger(__name__)
 
-IMGBB_API_KEY = os.getenv('IMGBB_API_KEY')
 IMGBB_UPLOAD_URL = "https://api.imgbb.com/1/upload"
+
+def get_imgbb_api_key():
+    """Get API key dynamically to pick up env changes"""
+    return os.environ.get('IMGBB_API_KEY')
 
 async def upload_to_imgbb(image_bytes: bytes, filename: str) -> dict:
     """
@@ -23,7 +26,8 @@ async def upload_to_imgbb(image_bytes: bytes, filename: str) -> dict:
     Returns:
         dict with 'url', 'display_url', 'delete_url'
     """
-    if not IMGBB_API_KEY:
+    api_key = get_imgbb_api_key()
+    if not api_key:
         raise Exception("IMGBB_API_KEY not configured in environment")
     
     try:
@@ -32,7 +36,7 @@ async def upload_to_imgbb(image_bytes: bytes, filename: str) -> dict:
         
         # Prepare payload
         payload = {
-            'key': IMGBB_API_KEY,
+            'key': api_key,
             'image': image_base64,
             'name': filename
         }
