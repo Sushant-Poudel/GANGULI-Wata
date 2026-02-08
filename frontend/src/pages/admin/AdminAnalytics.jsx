@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   TrendingUp, 
   ShoppingCart, 
@@ -40,11 +40,7 @@ export default function AdminAnalytics() {
   const [loading, setLoading] = useState(true);
   const [chartDays, setChartDays] = useState(30);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [chartDays]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     try {
       const [overviewRes, topRes, chartRes, statusRes] = await Promise.all([
