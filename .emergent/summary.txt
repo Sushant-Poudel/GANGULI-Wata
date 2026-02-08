@@ -1,157 +1,324 @@
 <analysis>**original_problem_statement:**
-The user wants to build a premium, modern, dark-themed e-commerce website for digital goods, similar to ottsathi.com and gameshopnepal.com. The project has evolved through multiple iterations, including several complete codebase replacements from user-provided GitHub repositories.
+The user wants to build a premium, modern, dark-themed e-commerce website for digital goods, similar to ottsathi.com and gameshopnepal.com. The project has undergone multiple rapid iterations where the entire codebase was replaced with new user-provided GitHub repositories, requiring data preservation and re-implementation of features.
 
 PRODUCT REQUIREMENTS:
-- **Homepage:** Display customer reviews prominently (in a sliding marquee), followed by a grid of products. A Check All Reviews button should link to a Trustpilot page.
-- **Product System:** Products should have square images, variations (e.g., different plans/prices), and a rich-text description. The order form can be customized per product with dynamic fields.
-- **Order Sync:** Orders placed on the website should be synced to the user's Take.app account via API.
-- **Admin Panel:** A comprehensive, mobile-responsive admin panel is required to manage the entire site, including products (with custom order forms), categories, reviews, blog posts, static pages, and view recent orders from Take.app.
-- **Authentication:** The admin panel should be secured with a username and password. Currently, these are hardcoded and need to be moved to environment variables.
-- **UI/UX:** The site must have a premium feel. Recent requests include making best-sellers horizontally scrollable, removing automatic SALE tags, and fixing mobile UI bugs in the admin panel.
+- **Homepage:** Display customer reviews and a grid of products.
+- **Product System:** Products with variations (e.g., different plans/prices). Admins should be able to edit and reorder these variations.
+- **Checkout & Invoicing:** A detailed, multi-step flow is required:
+    - On I have Paid, redirect the user to WhatsApp with a pre-filled, dynamically generated message containing the complete order summary.
+    - Allow customers to upload a payment screenshot, which automatically updates the order status to Confirmed.
+    - Admins must be able to view this screenshot in the order details.
+    - Generate a unique, public invoice URL for each completed order.
+    - Automatically email the invoice to the customer upon order completion.
+- **Admin Panel:** A comprehensive, mobile-responsive admin panel to manage products, categories, reviews, blogs, FAQs, and orders.
+- **Authentication:** Secure admin login (credentials moved to environment variables) and an OTP-based customer login system using Gmail for sending codes.
+- **Integrations:** Trustpilot for reviews and Take.app for order syncing.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application (FastAPI backend, React frontend) has been set up by cloning the user's latest provided GitHub repository (). All previous user data (products, categories, reviews, etc.) was successfully backed up and is present in the MongoDB database, working with the new codebase. The application is running locally, but the deployment agent has identified critical blockers related to environment variables and security. The admin panel is feature-rich, including management for products, a blog, promo codes, and a simplified Take.app integration that shows the 10 most recent orders.
+The entire codebase was just replaced with a new repository from . All previous user data (products, categories, etc.) was backed up and restored into the MongoDB database. However, after the new code was deployed, the frontend started showing a blank black screen due to a critical JavaScript error. The agent has identified the error and applied a fix but has not yet verified if the application is rendering correctly.
 
 **Last working item**:
-- **Last item agent was working:** The agent was responding to the user's request to check deployment readiness. The  was called and identified several critical blockers. The user had previously requested a new feature (editing product variations) but then immediately asked for the deployment check.
-- **Status:** IN PROGRESS
-- **Agent Testing Done:** N
-- **Which testing method agent to use?** backend testing agent to verify environment variables are used correctly for authentication after the fix, then call the  again to confirm all blockers are resolved.
-- **User Testing Done:** N
+-   **Last item agent was working:** Fixing a critical frontend bug in  that caused the application to render a blank black screen. The bug was a typo ( was used instead of  in a hook). The agent applied a code change to correct this.
+-   **Status:** IN PROGRESS
+-   **Agent Testing Done:** N
+-   **Which testing method agent to use?** screenshot tool to take a single screenshot of the homepage () to confirm the black screen issue is resolved.
+-   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Deployment Blocked by Critical Issues (Priority: P0)**
--   **Issue 2: Implement Product Variation Editing and Reordering (Priority: P1)**
--   **Issue 3: General Admin Panel Stability (Priority: P2)**
+-   **Issue 1: Critical - Application Not Rendering (Priority: P0)**
+-   **Issue 2: Verify and Fix Deployment Readiness (Priority: P1)**
 
 **Issues Detail:**
--   **Issue 1: Deployment Blocked by Critical Issues**
-    - The  reported that the app is **NOT DEPLOYABLE**. Key problems include:
-        1.  Hardcoded admin credentials (/) in .
-        2.   files are not included in , posing a security risk.
-        3.  The  file is bloated with unused AI/ML dependencies.
-    - **Next debug checklist:**
-        1.  Add  and  to .
-        2.  Modify  to read  and  from environment variables.
-        3.  Add the credentials to .
-        4.  Clean  to include only necessary packages.
-        5.  Restart the backend and test admin login to confirm the fix.
-        6.  Re-run the .
-    - **Why fix this issue and what will be achieved with the fix?** To resolve security vulnerabilities and configuration errors, making the application deployable.
-    - **Status:** IN PROGRESS
-    - **Is recurring issue?** Y
-    - **Should Test frontend/backend/both after fix?** Backend
--   **Issue 2: Implement Product Variation Editing and Reordering**
-    - This was the user's last feature request. They want to be able to edit existing product variations and change their display order.
-    - **Next debug checklist:**
-        1.  Modify .
-        2.  In the product editing modal, add controls (e.g., edit buttons, drag-and-drop handles) for each variation in the list.
-        3.  Implement state logic to handle reordering and editing of the  array.
-        4.  Ensure the  API call sends the modified  array to the backend.
-    - **Why fix this issue and what will be achieved with the fix?** This will give the admin full control over managing product options without having to delete and re-add them.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Both
--   **Issue 3: General Admin Panel Stability**
-    - The original handoff mentioned the user felt the Admin panel still not working properly. While many specific bugs have since been fixed, the codebase has been replaced entirely. A full regression test has not been performed on the new admin panel.
-    - **Next debug checklist:** Once P0 and P1 are complete, perform a thorough test of all admin functionalities: CRUD for products, categories, reviews, blog posts, pages, etc.
-    - **Why fix this issue and what will be achieved with the fix?** To proactively find and fix any remaining bugs and ensure the core management tool is reliable for the user.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Both
+-   **Issue 1: Critical - Application Not Rendering**
+    -   **Attempted fixes:** The agent identified a bug in  where  was incorrectly used instead of . A fix has been applied via .
+    -   **Next debug checklist:**
+        1.  Take a screenshot of the homepage ().
+        2.  If it still fails, check the browser console logs (==> /var/log/supervisor/frontend.err.log <==
+(node:333) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:333) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:77) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:77) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:400) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:400) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:78) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:78) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:85) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:85) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:389) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:389) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:85) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:85) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:83) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:83) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:85) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:85) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:78) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:78) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:80) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:80) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:84) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:84) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:426) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:426) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:83) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:83) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:80) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:80) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:404) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:404) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:771) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:771) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+
+==> /var/log/supervisor/frontend.out.log <==
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+
+ERROR in ./src/components/CustomerAuth.jsx
+Module build failed (from ./node_modules/babel-loader/lib/index.js):
+TypeError: /app/frontend/src/components/CustomerAuth.jsx: Cannot read properties of null (reading 'traverse')
+    at ImportDeclaration (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:876:44)
+    at NodePath._call (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:50:20)
+    at NodePath.call (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:40:18)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:87:31)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at traverse (/app/frontend/node_modules/@babel/traverse/lib/index.js:53:34)
+    at lazyEvaluatePropSource (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:856:7)
+    at lookupCrossFilePropSource (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:839:12)
+    at tracePropToSource (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:780:12)
+    at analyzeIdentifier (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:499:30)
+    at analyzeExpression (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:389:14)
+    at recordPropSources (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:811:26)
+    at PluginPass.JSXElement (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:1764:9)
+    at newFn (/app/frontend/node_modules/@babel/traverse/lib/visitors.js:168:14)
+    at NodePath._call (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:50:20)
+    at NodePath.call (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:40:18)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:87:31)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
+    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
+    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
+    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
+    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
+
+webpack compiled with 2 errors and 1 warning
+yarn run v1.22.22
+$ craco start
+Attempting to bind to HOST environment variable: 0.0.0.0
+If this was unintentional, check that you haven't mistakenly set it in your shell.
+Learn more here: https://cra.link/advanced-config
+
+Starting the development server...
+
+Compiled successfully!
+
+You can now view frontend in the browser.
+
+  Local:            http://localhost:3000
+  On Your Network:  http://10.208.162.151:3000
+
+Note that the development build is not optimized.
+To create a production build, use yarn build.
+
+webpack compiled successfully
+yarn run v1.22.22
+$ craco start) for new JavaScript errors.
+    -   **Why fix this issue and what will be achieved with the fix?** The application is completely unusable. Fixing this will make the UI accessible again.
+    -   **Status:** IN PROGRESS
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Frontend
+-   **Issue 2: Verify and Fix Deployment Readiness**
+    -   **Attempted fixes:** In a previous codebase, the agent fixed a  error by creating a static  in . This issue is likely to have returned with the new codebase.
+    -   **Next debug checklist:**
+        1.  Examine  to check how the  is being handled. If it's using , it is a critical deployment blocker.
+        2.  If it's a blocker, generate a static secret key and add it to  as . Update the server code to use this environment variable.
+        3.  Ensure  contains entries for  files.
+        4.  Call the  to perform a full health check after fixing any identified issues.
+    -   **Why fix this issue and what will be achieved with the fix?** To resolve critical security and stability vulnerabilities that prevent the application from being deployed successfully. A dynamic JWT secret causes all admin sessions to be invalidated on every server restart.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** Backend
 
 **In progress Task List**:
-- None. The main pending work is categorized under the issues above.
+-   None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - **(P2) Full Admin Panel Regression Test:** Verify all features in the new admin panel from the  repo are working as expected.
+  - **(P0) Re-implement Checkout & Invoicing Flow:** The detailed user requirements for the checkout process were implemented on a previous codebase and wiped out by the latest repo swap. This entire feature needs to be built again from scratch. This includes the WhatsApp redirect, payment screenshot upload changing order status, invoice generation, and automated emails.
+  - **(P1) Re-implement Product Variation Editing:** The user wants to edit and reorder product variations from the admin panel. This was also implemented previously and needs to be re-added to .
+  - **(P2) Enhance FAQ Page:** The user requested grouping FAQs by category and adding a search bar. This was implemented but wiped out. It needs to be re-implemented by adding a  field to the FAQ model and updating both the public and admin FAQ pages.
 - **Future Tasks:**
-  - Recent purchases ticker (for social proof)
-  - Flash sales/promotional banners
-  - Combo deals section
-  - Analytics dashboard
+  - Live purchase ticker
+  - Bundle Deals section
+  - Loyalty/Rewards Program
+  - Referral System
+  - Order Tracking Page
+  - Sales Analytics Dashboard
 
 **Completed work in this session**
-- **Codebase Migration:** Replaced the entire codebase with a user-provided GitHub repository () while successfully preserving all existing data in the MongoDB database.
-- **Take.app UI Cleanup:** Simplified the admin Take.app integration page to show only the 10 most recent orders and removed the inventory view.
-- **Customizable Order Forms:** Implemented a system allowing admins to define custom input fields (e.g., 'User ID') for each product's order form.
-- **Bug Fixes:**
-    - Fixed a critical blog page bug where the Read more button failed due to a FastAPI route ordering issue and a MongoDB ObjectId serialization error.
-    - Fixed a bug where seeded reviews could not be permanently deleted.
-    - Resolved multiple UI/UX issues: removed automatic SALE tags, made the Best Sellers section scrollable, and fixed a mobile layout issue in the admin panel header.
-- **Feature Implementation:** Added a See more toggle for long product descriptions, a site-wide search bar, and fixed an iOS search input zoom bug.
-- **Deployment Prep (Partial):** Began addressing deployment blockers by identifying hardcoded credentials and other issues via the deployment agent.
+-   **Multiple Codebase Migrations:** Successfully replaced the entire application codebase five times using user-provided GitHub repositories (, , , , and ), preserving and restoring user data with each swap.
+-   **Checkout & Order Flow (Wiped Out):** Implemented a full checkout-to-invoice pipeline, including WhatsApp redirects, screenshot uploads that changed order status, and dynamic invoice generation.
+-   **Feature Implementation (Wiped Out):** Added and later removed Bundle Deals and a Live Purchase Ticker. Enhanced the FAQ page with categories and search.
+-   **Bug Fixes (On previous codebases):**
+    -   Resolved critical  deployment errors by implementing a stable .
+    -   Fixed a Failed to process order error by creating a public endpoint for payment screenshot uploads.
+    -   Fixed an overly aggressive rate-limiter on the admin login page.
+    -   Corrected a bug where the Trustpilot script failed to load and send review invitations.
+
+**Earlier issues found/mentioned but not fixed**
+-   Due to the frequent codebase replacements, all previously identified minor issues became irrelevant. The major pending work is the re-implementation of lost features.
 
 **Known issue recurrence from previous fork**
-- **FastAPI Route Ordering:** The issue where a dynamic route (e.g., ) incorrectly captures a more specific static route (e.g., ) has occurred multiple times. Static routes must always be defined *before* dynamic routes in .
+-   **Dynamic JWT Secret:** A critical deployment blocker where the  is generated randomly on each server start has occurred before. It was fixed, but the new  codebase is highly likely to have this same vulnerability. This invalidates all admin tokens on every restart, leading to  errors in a production environment.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
 - **Backend**: FastAPI, Python, Motor (async MongoDB driver)
-- **Frontend**: React, Tailwind CSS, , , 
+- **Frontend**: React, Tailwind CSS, , 
 - **Database**: MongoDB
-- **Authentication**: JWT (currently hardcoded, moving to env vars is a P0 task)
+- **Authentication**: Admin (JWT), Customer (Email OTP)
 
 **key DB schema**
-- **Product**: , ,  (array of objects with , ), , ,  (array of objects with , , ).
-- **Category**: , , .
-- **Review**: , , .
-- **BlogPost**: , , , , .
+-   **Order**: , , , ,  (e.g., 'pending', 'confirmed', 'completed'), , .
+-   **Product**: , , , .
+-   **FAQ**: , , .
+-   **Customer**: , , .
+
+**changes in tech stack**
+-   None. The stack has remained consistent (FastAPI/React/MongoDB) despite five full codebase replacements.
 
 **All files of reference**
-- : Core backend logic. Needs credentials moved to env vars.
-- : Needs new  and  variables.
-- : Needs to be updated to ignore  files.
-- : Needs to be cleaned of unused dependencies.
-- : The target file for implementing variation editing/reordering.
+-   : Location of the critical bug that broke the UI.
+-   : Core backend logic. Needs to be checked for the recurring  issue and modified to re-implement the checkout/invoicing flow.
+-   : Needs to be checked for a static  and other required variables.
+-   : Will need significant work to re-implement the user's detailed checkout flow.
+-   : Will need to be created to display invoices.
+-   : Needs to be updated to display payment screenshots and invoice links.
 
 **Critical Info for New Agent**
-- **Priority 1 is fixing the deployment blockers.** The application is not deployable in its current state. Follow the checklist in Issue 1 to resolve this.
-- **Priority 2 is the user's last feature request:** implementing editing and reordering for product variations.
-- The codebase is from the  repository. All work should be done on this new base.
-- Admin credentials are  / . This is a security risk and must be moved to environment variables immediately.
+-   **Your immediate task is to verify the fix for the black screen.** The application is currently unusable. Take a screenshot of the homepage.
+-   **The user frequently replaces the entire codebase.** Be aware that any feature you build might be wiped out. The priority is to follow the user's most recent request.
+-   **The checkout/invoicing flow is a major, detailed requirement.** It was implemented and then lost in the last code swap. You will need to re-implement this from the user's detailed instructions.
+-   **Check for the recurring JWT Secret bug.** Before any deployment attempt, ensure a static  is defined in  and used in  to prevent  errors in production.
 
 **documents and test reports created in this job**
-- **/tmp/backup_products.json**: Backup of products before codebase migration.
-- **/tmp/backup_categories.json**: Backup of categories.
-- **/tmp/backup_reviews.json**: Backup of reviews.
-- **/tmp/backup_social_links.json**: Backup of social links.
-- : Product Requirements Document.
+-   
+-   Data backups from the last migration are in the  directory (e.g., ).
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Switch to a new GitHub repo () but keep the data. (Status: Completed)
-2.  **User:** Simplify the Take.app admin page to show only 10 recent orders and remove inventory. (Status: Completed)
-3.  **User:** Call Deployer Agent to check for deployment readiness. (Status: In Progress, agent ran and found issues).
-4.  **User:** Allow editing and reordering of product variations. (Status: Not Started)
-5.  **User:** Call Deployer Agent again. (Status: In Progress, this is the last action taken).
-6.  **User:** Fix issue where preset reviews can't be removed. (Status: Completed)
-7.  **User:** Implement a constantly sliding review marquee. (Status: Completed)
-8.  **User:** Make the review boxes in the marquee the same size. (Status: Completed)
-9.  **User:** Asked about a Take.app API key, leading to integration work. (Status: Completed)
-10. **User:** Requested a way to create orders on the website that sync to Take.app. (Status: Completed, but code was overwritten by repo change).
+1.  **User:** Replace code with . (Status: Completed, but introduced a critical bug).
+2.  **User:** (Implicitly reported via black screen) The app is broken. (Status: Fix applied, verification pending).
+3.  **User (Previous codebase):** Asks to run deployer agent. (Status: Completed).
+4.  **User (Previous codebase):** Fixes pricing () and product name in the WhatsApp message. (Status: Completed, but code wiped).
+5.  **User (Previous codebase):** WhatsApp redirect doesn't work on mobile. (Status: Completed, but code wiped).
+6.  **User (Previous codebase):** Provides detailed requirements for the full checkout, payment, and invoicing flow. (Status: Completed, but code wiped).
+7.  **User (Previous codebase):** Reports failed to process order error. (Status: Completed, but code wiped).
+8.  **User (Previous codebase):** Asks to replace code with . (Status: Completed).
+9.  **User (Previous codebase):** Asks to call deployer agent again. (Status: Completed).
+10. **User (Previous codebase):** Trustpilot send review is not working. (Status: Completed, but code wiped).
 
 **Project Health Check:**
-- **Broken**: Yes. While the application runs locally, it is not deployable due to critical security and configuration issues (hardcoded credentials,  files not in ).
+-   **Broken**: Yes. The application is currently non-functional, displaying a blank black screen due to a critical JavaScript error.
 
 **3rd Party Integrations**
-- **Take.app**: Integrated via a REST API to view recent orders in the admin panel. Requires a  to be set in the  file.
+-   **Trustpilot**: Requires a Business Unit ID. Functionality was previously implemented but its status in the new codebase is unknown.
+-   **Take.app**: Requires an API key. Functionality status in the new codebase is unknown.
+-   **Gmail (SMTP)**: Configured in  to send emails for the customer OTP login system.
 
 **Testing status**
-- **Testing agent used after significant changes**: NO (Not since the last major codebase replacement and feature changes).
-- **Troubleshoot agent used after agent stuck in loop**: NO
-- **Test files created**: None.
-- **Known regressions**: None confirmed, but a full regression test is recommended due to the recent codebase swap.
+-   **Testing agent used after significant changes**: NO
+-   **Troubleshoot agent used after agent stuck in loop**: NO
+-   **Test files created**: None.
+-   **Known regressions**: The entire feature set is a regression due to the most recent codebase swap. Key lost features include the detailed checkout/invoice flow, product variation editing, and numerous bug fixes.
 
 **Credentials to test flow:**
-- **Admin URL:** 
-- **Username:** 
-- **Password:** 
+-   **Admin URL:** 
+-   **Username:** 
+-   **Password:** 
 
 **What agent forgot to execute**
-- The agent has not yet started the implementation for editing and reordering product variations, which was the user's most recent feature request before the final deployment check.
-- A full regression test of the admin panel on the newest codebase from  is pending.</analysis>
+-   The agent has not yet taken a screenshot to verify that the fix for the critical black screen bug was successful. This is the most crucial next step.
+-   The agent did not run the  on the newest  codebase to proactively identify recurring deployment blockers like the dynamic .</analysis>
