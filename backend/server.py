@@ -522,6 +522,53 @@ async def get_permissions(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Only main admin can view permissions")
     
     permissions = await db.permissions.find({}, {"_id": 0}).to_list(100)
+    
+    # If no permissions exist, seed default permissions
+    if not permissions:
+        default_permissions = [
+            # Dashboard
+            {"id": "view_dashboard", "name": "View Dashboard", "category": "Dashboard"},
+            
+            # Orders
+            {"id": "view_orders", "name": "View Orders", "category": "Orders"},
+            {"id": "manage_orders", "name": "Manage Orders (Update Status)", "category": "Orders"},
+            
+            # Products
+            {"id": "view_products", "name": "View Products", "category": "Products"},
+            {"id": "manage_products", "name": "Add/Edit/Delete Products", "category": "Products"},
+            
+            # Categories
+            {"id": "view_categories", "name": "View Categories", "category": "Categories"},
+            {"id": "manage_categories", "name": "Add/Edit/Delete Categories", "category": "Categories"},
+            
+            # Reviews
+            {"id": "view_reviews", "name": "View Reviews", "category": "Reviews"},
+            {"id": "manage_reviews", "name": "Add/Edit/Delete Reviews", "category": "Reviews"},
+            
+            # Customers
+            {"id": "view_customers", "name": "View Customers", "category": "Customers"},
+            {"id": "manage_customers", "name": "Manage Customers", "category": "Customers"},
+            
+            # Content
+            {"id": "manage_blog", "name": "Manage Blog Posts", "category": "Content"},
+            {"id": "manage_faqs", "name": "Manage FAQs", "category": "Content"},
+            {"id": "manage_pages", "name": "Manage Static Pages", "category": "Content"},
+            
+            # Settings
+            {"id": "manage_payment_methods", "name": "Manage Payment Methods", "category": "Settings"},
+            {"id": "manage_promo_codes", "name": "Manage Promo Codes", "category": "Settings"},
+            {"id": "manage_social_links", "name": "Manage Social Links", "category": "Settings"},
+            {"id": "manage_notification_bar", "name": "Manage Notification Bar", "category": "Settings"},
+            
+            # Analytics
+            {"id": "view_analytics", "name": "View Analytics", "category": "Analytics"},
+        ]
+        
+        # Insert default permissions
+        await db.permissions.insert_many(default_permissions)
+        permissions = default_permissions
+        logger.info("Default permissions seeded")
+    
     return permissions
 
 
