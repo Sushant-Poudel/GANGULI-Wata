@@ -1103,19 +1103,21 @@ async def get_related_products(product_id: str, limit: int = 4):
     
     # If not enough, find products with similar tags
     if len(related) < limit and product.get("tags"):
+        existing_ids = [p.get("id") for p in related]
+        existing_ids.append(product.get("id"))
         with_tags = await db.products.find({
             "tags": {"$in": product.get("tags", [])},
-            "id": {"$ne": product.get("id")},
-            "id": {"$nin": [p.get("id") for p in related]},
+            "id": {"$nin": existing_ids},
             "is_active": True
         }, {"_id": 0}).limit(limit - len(related)).to_list(limit - len(related))
         related.extend(with_tags)
     
     # If still not enough, get any other products
     if len(related) < limit:
+        existing_ids = [p.get("id") for p in related]
+        existing_ids.append(product.get("id"))
         others = await db.products.find({
-            "id": {"$ne": product.get("id")},
-            "id": {"$nin": [p.get("id") for p in related]},
+            "id": {"$nin": existing_ids},
             "is_active": True
         }, {"_id": 0}).limit(limit - len(related)).to_list(limit - len(related))
         related.extend(others)
