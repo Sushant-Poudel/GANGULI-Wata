@@ -39,6 +39,10 @@ JWT_SECRET = os.environ.get('JWT_SECRET', secrets.token_hex(32))
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
+# Take.app Config
+TAKEAPP_API_KEY = os.environ.get('TAKEAPP_API_KEY', '')
+TAKEAPP_BASE_URL = "https://api.take.app/v1"
+
 # Create the main app
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
