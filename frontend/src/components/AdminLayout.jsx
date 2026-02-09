@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, FolderOpen, Star, FileText, Share2, LogOut, Home, Menu, X, HelpCircle, Bell, BookOpen, CreditCard, Ticket, Settings, Send, BarChart3, Users, ShoppingCart, Shield } from 'lucide-react';
+import { LayoutDashboard, Package, FolderOpen, Star, FileText, Share2, LogOut, Home, Menu, X, HelpCircle, Bell, BookOpen, CreditCard, Ticket, Settings, Send, BarChart3, Users, ShoppingCart, Shield, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { authAPI } from '@/lib/api';
 
@@ -23,7 +23,7 @@ const navItems = [
   { path: '/admin/payment-methods', label: 'Payment Methods', icon: CreditCard, permission: 'view_settings' },
   { path: '/admin/notification-bar', label: 'Notification Bar', icon: Bell, permission: 'view_settings' },
   { path: '/admin/blog', label: 'Blog / Guides', icon: BookOpen, permission: 'view_blog' },
-  { path: '/admin/trustpilot', label: 'Trustpilot', icon: Send, permission: 'view_settings' },
+  { path: '/admin/newsletter', label: 'Newsletter', icon: Mail, permission: 'view_settings' },
 ];
 
 export default function AdminLayout({ children, title }) {

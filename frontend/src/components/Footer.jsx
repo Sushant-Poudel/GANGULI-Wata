@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Facebook, Instagram, MessageCircle } from 'lucide-react';
+import { Facebook, Instagram, MessageCircle, Send, Loader2 } from 'lucide-react';
 import { socialLinksAPI } from '@/lib/api';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import axios from 'axios';
 
 const LOGO_URL = "https://customer-assets.emergentagent.com/job_8ec93a6a-4f80-4dde-b760-4bc71482fa44/artifacts/4uqt5osn_Staff.zip%20-%201.png";
 
@@ -19,15 +23,35 @@ const DiscordIcon = () => (
 
 export default function Footer() {
   const [socialLinks, setSocialLinks] = useState({});
+  const [email, setEmail] = useState('');
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
     socialLinksAPI.getAll()
       .then(res => {
-        // API now returns object with platform names as keys
         setSocialLinks(res.data || {});
       })
       .catch(() => {});
   }, []);
+
+  const handleSubscribe = async (e) => {
+    e.preventDefault();
+    if (!email || !email.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setIsSubscribing(true);
+    try {
+      const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/newsletter/subscribe`, { email });
+      toast.success(response.data.message);
+      setEmail('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to subscribe');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
 
   const getIcon = (platform) => {
     const name = platform?.toLowerCase();
@@ -39,13 +63,53 @@ export default function Footer() {
     return null;
   };
 
-  // Convert object to array of {platform, url} for rendering
   const socialLinksArray = Object.entries(socialLinks)
     .filter(([key, value]) => value && key !== 'updated_at' && key !== '_id')
     .map(([platform, url]) => ({ platform, url }));
 
   return (
     <footer className="bg-black border-t border-white/10" data-testid="footer">
+      {/* Newsletter Section */}
+      <div className="border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-center md:text-left">
+              <h3 className="font-heading text-lg lg:text-xl font-semibold text-white mb-2">
+                Subscribe to Our Newsletter
+              </h3>
+              <p className="text-white/60 text-sm">
+                Get exclusive deals, new product alerts & special offers delivered to your inbox!
+              </p>
+            </div>
+            <form onSubmit={handleSubscribe} className="flex w-full md:w-auto gap-2">
+              <Input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="bg-white/5 border-white/20 text-white placeholder:text-white/40 w-full md:w-72"
+                data-testid="newsletter-email-input"
+              />
+              <Button 
+                type="submit" 
+                disabled={isSubscribing}
+                className="bg-gold-500 hover:bg-gold-600 text-black font-semibold px-6"
+                data-testid="newsletter-subscribe-btn"
+              >
+                {isSubscribing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Subscribe
+                  </>
+                )}
+              </Button>
+            </form>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8">
           <div className="col-span-2">

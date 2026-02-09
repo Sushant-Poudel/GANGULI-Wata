@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, Search, Package, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Mail, Phone, User, Calendar, FileText, Image, ExternalLink, Trash2 } from 'lucide-react';
+import { RefreshCw, Search, Package, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Mail, Phone, User, Calendar, FileText, Image, ExternalLink, Trash2, Square, CheckSquare } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { ordersAPI, orderTrackingAPI } from '@/lib/api';
+import axios from 'axios';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending', icon: Clock, color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
@@ -25,6 +27,10 @@ export default function AdminOrders() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [expandedOrderId, setExpandedOrderId] = useState(null);
+  
+  // Multi-select state
+  const [selectedOrders, setSelectedOrders] = useState(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Status update dialog
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
@@ -153,6 +159,63 @@ export default function AdminOrders() {
     }
   };
 
+  // Multi-select handlers
+  const toggleSelectOrder = (orderId) => {
+    const newSelected = new Set(selectedOrders);
+    if (newSelected.has(orderId)) {
+      newSelected.delete(orderId);
+    } else {
+      newSelected.add(orderId);
+    }
+    setSelectedOrders(newSelected);
+  };
+
+  const selectAllFiltered = () => {
+    const newSelected = new Set(selectedOrders);
+    filteredOrders.forEach(order => newSelected.add(order.id));
+    setSelectedOrders(newSelected);
+  };
+
+  const deselectAll = () => {
+    setSelectedOrders(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedOrders.size === 0) {
+      toast.error('No orders selected');
+      return;
+    }
+
+    const selectedList = Array.from(selectedOrders);
+    const confirmMsg = `Are you sure you want to delete ${selectedList.length} order(s)? This action cannot be undone.`;
+    
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem('admin_token');
+      const response = await axios.post(
+        `${process.env.REACT_APP_BACKEND_URL}/api/orders/bulk-delete`,
+        { order_ids: selectedList },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      toast.success(response.data.message);
+      setSelectedOrders(new Set());
+      await fetchOrders();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete orders');
+      console.error('Bulk delete error:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const areAllFilteredSelected = filteredOrders.length > 0 && 
+    filteredOrders.every(order => selectedOrders.has(order.id));
+
 
   // Calculate stats
   const stats = {
@@ -218,7 +281,7 @@ export default function AdminOrders() {
               data-testid="order-search-input"
             />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setSelectedOrders(new Set()); }}>
             <SelectTrigger className="w-full sm:w-48 bg-black border-white/20 text-white" data-testid="order-status-filter">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
@@ -240,6 +303,50 @@ export default function AdminOrders() {
           </Button>
         </div>
 
+        {/* Bulk Actions Bar */}
+        {filteredOrders.length > 0 && (
+          <div className="flex items-center gap-4 bg-card border border-white/10 rounded-lg p-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={areAllFilteredSelected ? deselectAll : selectAllFiltered}
+              className="border-white/20 text-white hover:bg-white/10"
+              data-testid="select-all-btn"
+            >
+              {areAllFilteredSelected ? (
+                <>
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                  Deselect All ({filteredOrders.length})
+                </>
+              ) : (
+                <>
+                  <Square className="h-4 w-4 mr-2" />
+                  Select All {statusFilter !== 'all' ? STATUS_OPTIONS.find(s => s.value === statusFilter)?.label : ''} ({filteredOrders.length})
+                </>
+              )}
+            </Button>
+            
+            {selectedOrders.size > 0 && (
+              <>
+                <span className="text-white/60 text-sm">
+                  {selectedOrders.size} order(s) selected
+                </span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                  className="bg-red-500 hover:bg-red-600 text-white"
+                  data-testid="bulk-delete-btn"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {isDeleting ? 'Deleting...' : `Delete Selected (${selectedOrders.size})`}
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Orders List */}
         {isLoading ? (
           <div className="space-y-4">
@@ -257,7 +364,11 @@ export default function AdminOrders() {
             {filteredOrders.map((order) => (
               <div 
                 key={order.id} 
-                className="bg-card border border-white/10 rounded-lg overflow-hidden hover:border-gold-500/30 transition-colors"
+                className={`bg-card border rounded-lg overflow-hidden transition-colors ${
+                  selectedOrders.has(order.id) 
+                    ? 'border-gold-500/50 bg-gold-500/5' 
+                    : 'border-white/10 hover:border-gold-500/30'
+                }`}
                 data-testid={`order-card-${order.id}`}
               >
                 {/* Order Header */}
@@ -267,6 +378,18 @@ export default function AdminOrders() {
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-start gap-4">
+                      {/* Checkbox */}
+                      <div 
+                        onClick={(e) => { e.stopPropagation(); toggleSelectOrder(order.id); }}
+                        className="pt-1"
+                      >
+                        <Checkbox 
+                          checked={selectedOrders.has(order.id)}
+                          onCheckedChange={() => toggleSelectOrder(order.id)}
+                          className="border-white/40 data-[state=checked]:bg-gold-500 data-[state=checked]:border-gold-500"
+                          data-testid={`order-checkbox-${order.id}`}
+                        />
+                      </div>
                       <div className="p-2 bg-gold-500/10 rounded-lg">
                         <Package className="h-6 w-6 text-gold-500" />
                       </div>

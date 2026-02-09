@@ -19,6 +19,7 @@ import shutil
 import httpx
 from email_service import send_email, get_order_confirmation_email, get_order_status_update_email, get_welcome_email
 from imgbb_service import upload_to_imgbb
+import google_sheets_service
 
 
 ROOT_DIR = Path(__file__).parent
@@ -157,6 +158,7 @@ class ProductVariation(BaseModel):
     name: str
     price: float
     original_price: Optional[float] = None
+    cost_price: Optional[float] = None  # Admin only - for profit calculation
     description: Optional[str] = None
 
 class ProductFormField(BaseModel):
@@ -740,6 +742,12 @@ async def verify_customer_otp(verify: OTPVerify):
         }
         await db.customers.insert_one(customer)
     
+    # Sync customer to Google Sheets (in background)
+    try:
+        google_sheets_service.sync_customer_to_sheets(customer)
+    except Exception as e:
+        logger.warning(f"Failed to sync customer to Google Sheets: {e}")
+    
     # Create JWT token for customer
     token = create_token(customer["id"])
     
@@ -756,10 +764,17 @@ async def get_current_customer(credentials: HTTPAuthorizationCredentials = Depen
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("user_id")
         
-        # Check if it's a customer
+        # Check if it's a customer by ID
         customer = await db.customers.find_one({"id": user_id}, {"_id": 0})
         if customer:
             return customer
+        
+        # Fallback: check by customer_id key (for backward compatibility)
+        customer_id = payload.get("customer_id")
+        if customer_id:
+            customer = await db.customers.find_one({"id": customer_id}, {"_id": 0})
+            if customer:
+                return customer
         
         raise HTTPException(status_code=401, detail="Invalid customer token")
     except jwt.ExpiredSignatureError:
@@ -1585,6 +1600,12 @@ async def create_order(order_data: CreateOrderRequest):
     }
 
     await db.orders.insert_one(local_order)
+    
+    # Sync order to Google Sheets (in background)
+    try:
+        google_sheets_service.sync_order_to_sheets(local_order)
+    except Exception as e:
+        logger.warning(f"Failed to sync order to Google Sheets: {e}")
 
     # Send order confirmation email
     if order_data.customer_email:
@@ -1789,6 +1810,43 @@ async def delete_order(order_id: str, current_user: dict = Depends(get_current_u
     logger.info(f"Order deleted by {current_user.get('username')}: {order_id}")
     
     return {"message": "Order deleted successfully", "order_id": order_id}
+
+class BulkDeleteRequest(BaseModel):
+    order_ids: List[str]
+
+@api_router.post("/orders/bulk-delete")
+async def bulk_delete_orders(request: BulkDeleteRequest, current_user: dict = Depends(get_current_user)):
+    """Bulk delete orders - requires delete_orders permission"""
+    
+    if not check_permission(current_user, 'delete_orders'):
+        raise HTTPException(status_code=403, detail="You don't have permission to delete orders")
+    
+    if not request.order_ids:
+        raise HTTPException(status_code=400, detail="No order IDs provided")
+    
+    deleted_count = 0
+    failed_ids = []
+    
+    for order_id in request.order_ids:
+        try:
+            result = await db.orders.delete_one({"id": order_id})
+            if result.deleted_count > 0:
+                deleted_count += 1
+                # Also delete tracking history
+                await db.order_status_history.delete_many({"order_id": order_id})
+            else:
+                failed_ids.append(order_id)
+        except Exception as e:
+            logger.error(f"Failed to delete order {order_id}: {e}")
+            failed_ids.append(order_id)
+    
+    logger.info(f"Bulk delete by {current_user.get('username')}: {deleted_count} orders deleted")
+    
+    return {
+        "message": f"Successfully deleted {deleted_count} orders",
+        "deleted_count": deleted_count,
+        "failed_ids": failed_ids
+    }
 
 @api_router.get("/invoice/{order_id}")
 async def get_invoice(order_id: str):
@@ -2371,6 +2429,92 @@ class OrderStatusUpdate(BaseModel):
     status: str  # pending, processing, completed, cancelled
     note: Optional[str] = None
 
+# ==================== NEWSLETTER ====================
+
+class NewsletterSubscribe(BaseModel):
+    email: str
+    name: Optional[str] = None
+
+@api_router.post("/newsletter/subscribe")
+async def subscribe_newsletter(data: NewsletterSubscribe):
+    """Subscribe to newsletter"""
+    email = data.email.lower().strip()
+    
+    # Validate email format
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Invalid email address")
+    
+    # Check if already subscribed
+    existing = await db.newsletter.find_one({"email": email})
+    if existing:
+        if existing.get("is_active", True):
+            return {"message": "You're already subscribed!", "already_subscribed": True}
+        else:
+            # Reactivate subscription
+            await db.newsletter.update_one(
+                {"email": email},
+                {"$set": {"is_active": True, "resubscribed_at": datetime.now(timezone.utc).isoformat()}}
+            )
+            return {"message": "Welcome back! You've been resubscribed.", "resubscribed": True}
+    
+    # Create new subscription
+    subscriber = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "name": data.name,
+        "is_active": True,
+        "subscribed_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.newsletter.insert_one(subscriber)
+    
+    return {"message": "Successfully subscribed to our newsletter!", "success": True}
+
+@api_router.post("/newsletter/unsubscribe")
+async def unsubscribe_newsletter(email: str):
+    """Unsubscribe from newsletter"""
+    email = email.lower().strip()
+    
+    result = await db.newsletter.update_one(
+        {"email": email},
+        {"$set": {"is_active": False, "unsubscribed_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Email not found in subscribers")
+    
+    return {"message": "Successfully unsubscribed"}
+
+@api_router.get("/newsletter/subscribers")
+async def get_newsletter_subscribers(current_user: dict = Depends(get_current_user)):
+    """Get all newsletter subscribers (admin only)"""
+    subscribers = await db.newsletter.find(
+        {"is_active": True},
+        {"_id": 0}
+    ).sort("subscribed_at", -1).to_list(10000)
+    
+    return subscribers
+
+@api_router.get("/newsletter/stats")
+async def get_newsletter_stats(current_user: dict = Depends(get_current_user)):
+    """Get newsletter statistics"""
+    total = await db.newsletter.count_documents({})
+    active = await db.newsletter.count_documents({"is_active": True})
+    
+    # Get subscribers in last 7 days
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    recent = await db.newsletter.count_documents({
+        "subscribed_at": {"$gte": week_ago},
+        "is_active": True
+    })
+    
+    return {
+        "total": total,
+        "active": active,
+        "unsubscribed": total - active,
+        "recent_week": recent
+    }
+
 @api_router.get("/orders/track/{order_id}")
 async def track_order(order_id: str):
     """Public order tracking by order ID or order number"""
@@ -2491,40 +2635,58 @@ async def get_analytics_overview(current_user: dict = Depends(get_current_user))
     ]).to_list(1)
     month_revenue = month_revenue_cursor[0]["total"] if month_revenue_cursor else 0
     
-    # All time stats
-    total_orders = await db.orders.count_documents({})
-    total_revenue_cursor = await db.orders.aggregate([
-        {"$match": {"status": {"$ne": "cancelled"}}},
-        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
-    ]).to_list(1)
-    total_revenue = total_revenue_cursor[0]["total"] if total_revenue_cursor else 0
-    
-    # Product & category counts
-    total_products = await db.products.count_documents({"is_active": True})
-    total_categories = await db.categories.count_documents({})
-    total_reviews = await db.reviews.count_documents({})
-    
-    # Wishlist count
-    total_wishlists = await db.wishlists.count_documents({})
+    # Website visits
+    today_visits = await db.visits.count_documents({"date": today_start[:10]})
+    week_visits = await db.visits.count_documents({"created_at": {"$gte": week_ago}})
+    month_visits = await db.visits.count_documents({"created_at": {"$gte": month_ago}})
     
     return {
         "today": {"orders": today_orders, "revenue": today_revenue},
         "week": {"orders": week_orders, "revenue": week_revenue},
         "month": {"orders": month_orders, "revenue": month_revenue},
-        "all_time": {"orders": total_orders, "revenue": total_revenue},
-        "counts": {
-            "products": total_products,
-            "categories": total_categories,
-            "reviews": total_reviews,
-            "wishlists": total_wishlists
+        "visits": {
+            "today": today_visits,
+            "week": week_visits,
+            "month": month_visits
         }
     }
 
+@api_router.post("/track-visit")
+async def track_visit(request: Request):
+    """Track a website visit - called from frontend"""
+    try:
+        # Get visitor identifier from header or generate session-based
+        visitor_id = request.headers.get("X-Visitor-ID", "")
+        user_agent = request.headers.get("User-Agent", "")
+        
+        now = datetime.now(timezone.utc)
+        today = now.strftime("%Y-%m-%d")
+        
+        # Only count unique visits per day per visitor
+        existing = await db.visits.find_one({
+            "visitor_id": visitor_id,
+            "date": today
+        })
+        
+        if not existing and visitor_id:
+            await db.visits.insert_one({
+                "visitor_id": visitor_id,
+                "date": today,
+                "user_agent": user_agent,
+                "created_at": now.isoformat()
+            })
+        
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error tracking visit: {e}")
+        return {"success": False}
+
 @api_router.get("/analytics/top-products")
 async def get_top_products(current_user: dict = Depends(get_current_user), limit: int = 10):
-    """Get top selling products"""
-    # Aggregate orders to find top products
+    """Get top selling products - only counts completed orders"""
+    # Aggregate orders to find top products - only from completed orders
     pipeline = [
+        {"$match": {"status": {"$in": ["completed", "Completed", "delivered"]}}},
         {"$unwind": "$items"},
         {"$group": {
             "_id": "$items.name",
@@ -2601,6 +2763,90 @@ async def get_order_status_breakdown(current_user: dict = Depends(get_current_us
     return {
         item["_id"] or "pending": item["count"]
         for item in status_data
+    }
+
+@api_router.get("/analytics/profit")
+async def get_profit_analytics(current_user: dict = Depends(get_current_user)):
+    """Get profit analytics based on cost price vs selling price"""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    week_ago = (now - timedelta(days=7)).isoformat()
+    month_ago = (now - timedelta(days=30)).isoformat()
+    
+    # Get all completed orders
+    completed_orders = await db.orders.find(
+        {"status": {"$in": ["completed", "delivered"]}}
+    ).to_list(10000)
+    
+    # Get all products to map cost prices
+    products = await db.products.find({}, {"_id": 0}).to_list(1000)
+    
+    # Create variation cost price lookup
+    cost_lookup = {}
+    for product in products:
+        for var in product.get("variations", []):
+            key = f"{product['id']}_{var['id']}"
+            cost_lookup[key] = var.get("cost_price", 0) or 0
+    
+    # Calculate profits
+    def calculate_profit(orders):
+        total_revenue = 0
+        total_cost = 0
+        for order in orders:
+            total_revenue += order.get("total_amount", 0)
+            for item in order.get("items", []):
+                key = f"{item.get('product_id', '')}_{item.get('variation_id', '')}"
+                cost = cost_lookup.get(key, 0)
+                qty = item.get("quantity", 1)
+                total_cost += cost * qty
+        return {"revenue": total_revenue, "cost": total_cost, "profit": total_revenue - total_cost}
+    
+    # Filter orders by time periods
+    today_orders = [o for o in completed_orders if o.get("created_at", "") >= today_start]
+    week_orders = [o for o in completed_orders if o.get("created_at", "") >= week_ago]
+    month_orders = [o for o in completed_orders if o.get("created_at", "") >= month_ago]
+    
+    return {
+        "today": calculate_profit(today_orders),
+        "week": calculate_profit(week_orders),
+        "month": calculate_profit(month_orders),
+        "all_time": calculate_profit(completed_orders)
+    }
+
+# ==================== GOOGLE SHEETS ====================
+
+@api_router.get("/google-sheets/test")
+async def test_google_sheets(current_user: dict = Depends(get_current_user)):
+    """Test Google Sheets connection"""
+    return google_sheets_service.test_connection()
+
+@api_router.post("/google-sheets/sync-all")
+async def sync_all_to_sheets(current_user: dict = Depends(get_current_user)):
+    """Sync all customers and orders to Google Sheets"""
+    # Sync all customers
+    customers = await db.customers.find({}, {"_id": 0}).to_list(10000)
+    customers_synced = 0
+    for customer in customers:
+        try:
+            google_sheets_service.sync_customer_to_sheets(customer)
+            customers_synced += 1
+        except Exception as e:
+            logger.error(f"Failed to sync customer {customer.get('email')}: {e}")
+    
+    # Sync all orders
+    orders = await db.orders.find({}, {"_id": 0}).to_list(10000)
+    orders_synced = 0
+    for order in orders:
+        try:
+            google_sheets_service.sync_order_to_sheets(order)
+            orders_synced += 1
+        except Exception as e:
+            logger.error(f"Failed to sync order {order.get('id')}: {e}")
+    
+    return {
+        "success": True,
+        "customers_synced": customers_synced,
+        "orders_synced": orders_synced
     }
 
 # ==================== SEO / SITEMAP ====================

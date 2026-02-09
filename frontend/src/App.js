@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { WishlistProvider } from "@/components/Wishlist";
 import { CartProvider } from "@/components/Cart";
@@ -34,10 +35,34 @@ import AdminAnalytics from "@/pages/admin/AdminAnalytics";
 import AdminCustomers from "@/pages/admin/AdminCustomers";
 import AdminOrders from "@/pages/admin/AdminOrders";
 import AdminStaff from "@/pages/admin/AdminStaff";
+import AdminNewsletter from "@/pages/admin/AdminNewsletter";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import "@/App.css";
 
+// Track website visits
+const trackVisit = () => {
+  // Generate or get visitor ID
+  let visitorId = localStorage.getItem('visitor_id');
+  if (!visitorId) {
+    visitorId = 'v_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+    localStorage.setItem('visitor_id', visitorId);
+  }
+  
+  // Track the visit
+  fetch(`${process.env.REACT_APP_BACKEND_URL}/api/track-visit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Visitor-ID': visitorId
+    }
+  }).catch(() => {}); // Silent fail
+};
+
 function App() {
+  useEffect(() => {
+    trackVisit();
+  }, []);
+
   return (
     <LanguageProvider>
       <CustomerProvider>
@@ -77,6 +102,7 @@ function App() {
                   <Route path="/admin/customers" element={<ProtectedRoute requiredPermission="view_customers"><AdminCustomers /></ProtectedRoute>} />
                   <Route path="/admin/orders" element={<ProtectedRoute requiredPermission="view_orders"><AdminOrders /></ProtectedRoute>} />
                   <Route path="/admin/staff" element={<ProtectedRoute requiredPermission="manage_admins"><AdminStaff /></ProtectedRoute>} />
+                  <Route path="/admin/newsletter" element={<ProtectedRoute requiredPermission="view_settings"><AdminNewsletter /></ProtectedRoute>} />
                 </Routes>
               </BrowserRouter>
               <Toaster position="top-right" richColors />
