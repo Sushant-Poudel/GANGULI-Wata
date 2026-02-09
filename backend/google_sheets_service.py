@@ -1,18 +1,18 @@
 """
 Google Sheets Service for Customer Data Storage
-Uses Service Account authentication
+Uses Service Account authentication via environment variable
 """
 import gspread
 from google.oauth2.service_account import Credentials
-from pathlib import Path
 import logging
-from datetime import datetime, timezone
+import os
+import json
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-SERVICE_ACCOUNT_FILE = Path(__file__).parent / "google_service_account.json"
-SPREADSHEET_ID = "1PNB6sHaawTa5vrpd6Oc4Q97HE2kBFBHEnuI6ChLMnmA"
+# Configuration - Read from environment variables
+GOOGLE_SERVICE_ACCOUNT_JSON = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON', '')
+SPREADSHEET_ID = os.environ.get('GOOGLE_SHEETS_SPREADSHEET_ID', '1PNB6sHaawTa5vrpd6Oc4Q97HE2kBFBHEnuI6ChLMnmA')
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
@@ -29,12 +29,22 @@ def get_sheets_client():
     global _client
     if _client is None:
         try:
-            creds = Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_FILE, 
+            if not GOOGLE_SERVICE_ACCOUNT_JSON:
+                logger.warning("GOOGLE_SERVICE_ACCOUNT_JSON environment variable not set")
+                return None
+            
+            # Parse JSON from environment variable
+            service_account_info = json.loads(GOOGLE_SERVICE_ACCOUNT_JSON)
+            
+            creds = Credentials.from_service_account_info(
+                service_account_info, 
                 scopes=SCOPES
             )
             _client = gspread.authorize(creds)
             logger.info("Google Sheets client initialized")
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid GOOGLE_SERVICE_ACCOUNT_JSON format: {e}")
+            return None
         except Exception as e:
             logger.error(f"Failed to initialize Google Sheets client: {e}")
             return None
@@ -176,7 +186,7 @@ def test_connection():
     try:
         client = get_sheets_client()
         if not client:
-            return {"success": False, "error": "Failed to initialize client"}
+            return {"success": False, "error": "Failed to initialize client - check GOOGLE_SERVICE_ACCOUNT_JSON env var"}
         
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
         return {
