@@ -2779,10 +2779,9 @@ async def get_profit_analytics(current_user: dict = Depends(get_current_user)):
     week_ago = (now - timedelta(days=7)).isoformat()
     month_ago = (now - timedelta(days=30)).isoformat()
     
-    # Get all completed orders
-    completed_orders = await db.orders.find(
-        {"status": {"$in": ["completed", "delivered"]}}
-    ).to_list(10000)
+    # Get all completed orders (case-insensitive status check)
+    all_orders = await db.orders.find({}).to_list(10000)
+    completed_orders = [o for o in all_orders if (o.get("status", "").lower() in ["completed", "delivered"])]
     
     # Get all products to map cost prices
     products = await db.products.find({}, {"_id": 0}).to_list(1000)
