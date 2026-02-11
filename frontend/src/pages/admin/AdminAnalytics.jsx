@@ -146,16 +146,16 @@ export default function AdminAnalytics() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Revenue:</span>
-                        <span className="text-white font-medium">Rs {period.data?.revenue?.toLocaleString() || 0}</span>
+                        <span className="text-white font-medium">Rs {Math.round(period.data?.revenue || 0).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Cost:</span>
-                        <span className="text-red-400 font-medium">Rs {period.data?.cost?.toLocaleString() || 0}</span>
+                        <span className="text-red-400 font-medium">Rs {Math.round(period.data?.cost || 0).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm font-semibold border-t border-zinc-600 pt-2 mt-2">
                         <span className="text-gray-400">Profit:</span>
                         <span className={period.data?.profit >= 0 ? "text-green-400" : "text-red-400"}>
-                          Rs {period.data?.profit?.toLocaleString() || 0}
+                          Rs {Math.round(period.data?.profit || 0).toLocaleString()}
                         </span>
                       </div>
                     </div>
