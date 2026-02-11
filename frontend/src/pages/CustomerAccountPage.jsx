@@ -25,14 +25,17 @@ export default function CustomerAccountPage() {
   const [expandedOrderId, setExpandedOrderId] = useState(null);
 
   const getStatusConfig = (status) => {
+    // Normalize status to lowercase for matching
+    const normalizedStatus = (status || '').toLowerCase();
     const configs = {
       pending: { label: 'Pending', icon: Clock, bgColor: 'bg-yellow-500/20', textColor: 'text-yellow-500', borderColor: 'border-yellow-500/30' },
       confirmed: { label: 'Confirmed', icon: CheckCircle, bgColor: 'bg-blue-500/20', textColor: 'text-blue-500', borderColor: 'border-blue-500/30' },
       completed: { label: 'Completed', icon: CheckCircle, bgColor: 'bg-green-500/20', textColor: 'text-green-500', borderColor: 'border-green-500/30' },
       processing: { label: 'Processing', icon: Clock, bgColor: 'bg-blue-500/20', textColor: 'text-blue-500', borderColor: 'border-blue-500/30' },
       cancelled: { label: 'Cancelled', icon: XCircle, bgColor: 'bg-red-500/20', textColor: 'text-red-500', borderColor: 'border-red-500/30' },
+      delivered: { label: 'Delivered', icon: CheckCircle, bgColor: 'bg-green-500/20', textColor: 'text-green-500', borderColor: 'border-green-500/30' },
     };
-    return configs[status] || configs.pending;
+    return configs[normalizedStatus] || configs.pending;
   };
 
   const toggleOrderExpand = (orderId) => {
