@@ -302,9 +302,10 @@ export default function CustomerAccountPage() {
                             {['pending', 'confirmed', 'completed'].map((step, idx) => {
                               const stepConfig = getStatusConfig(step);
                               const StepIcon = stepConfig.icon;
-                              const currentStepIndex = ['pending', 'confirmed', 'completed'].indexOf(order.status);
-                              const isActive = idx <= currentStepIndex && order.status !== 'cancelled';
-                              const isCancelled = order.status === 'cancelled';
+                              const normalizedOrderStatus = (order.status || '').toLowerCase();
+                              const currentStepIndex = ['pending', 'confirmed', 'completed'].indexOf(normalizedOrderStatus);
+                              const isActive = idx <= currentStepIndex && normalizedOrderStatus !== 'cancelled';
+                              const isCancelled = normalizedOrderStatus === 'cancelled';
                               
                               return (
                                 <div key={step} className="flex-1 flex flex-col items-center relative">
