@@ -176,8 +176,8 @@ export default function InvoicePage() {
                       )}
                     </td>
                     <td className="text-center py-4 px-4 text-white">{item.quantity}</td>
-                    <td className="text-right py-4 px-4 text-white">Rs {item.price?.toFixed(2)}</td>
-                    <td className="text-right py-4 px-4 font-semibold text-white">Rs {(item.price * item.quantity)?.toFixed(2)}</td>
+                    <td className="text-right py-4 px-4 text-white">Rs {Math.round(item.price || 0).toLocaleString()}</td>
+                    <td className="text-right py-4 px-4 font-semibold text-white">Rs {Math.round((item.price || 0) * (item.quantity || 1)).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
