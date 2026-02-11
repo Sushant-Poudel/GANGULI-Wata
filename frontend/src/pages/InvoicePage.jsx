@@ -191,24 +191,24 @@ export default function InvoicePage() {
             <div className="space-y-3">
               <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal</span>
-                <span>Rs {subtotal.toFixed(2)}</span>
+                <span>Rs {Math.round(subtotal).toLocaleString()}</span>
               </div>
               {serviceCharge > 0 && (
                 <div className="flex justify-between text-muted-foreground">
                   <span>Service Charge</span>
-                  <span>Rs {serviceCharge.toFixed(2)}</span>
+                  <span>Rs {Math.round(serviceCharge).toLocaleString()}</span>
                 </div>
               )}
               {tax > 0 && (
                 <div className="flex justify-between text-muted-foreground">
                   <span>Tax</span>
-                  <span>Rs {tax.toFixed(2)}</span>
+                  <span>Rs {Math.round(tax).toLocaleString()}</span>
                 </div>
               )}
               <div className="h-px bg-white/10 my-3"></div>
               <div className="flex justify-between items-center">
                 <span className="text-xl font-heading font-bold text-white">Total Amount</span>
-                <span className="text-2xl font-heading font-bold text-primary">Rs {total.toFixed(2)}</span>
+                <span className="text-2xl font-heading font-bold text-primary">Rs {Math.round(total).toLocaleString()}</span>
               </div>
             </div>
           </div>
