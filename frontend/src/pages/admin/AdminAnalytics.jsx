@@ -64,9 +64,10 @@ export default function AdminAnalytics() {
   }, [fetchAnalytics]);
 
   const formatCurrency = (amount) => {
-    if (amount >= 100000) return `Rs ${(amount / 100000).toFixed(1)}L`;
-    if (amount >= 1000) return `Rs ${(amount / 1000).toFixed(1)}K`;
-    return `Rs ${amount}`;
+    const rounded = Math.round(amount || 0);
+    if (rounded >= 100000) return `Rs ${(rounded / 100000).toFixed(1)}L`;
+    if (rounded >= 1000) return `Rs ${(rounded / 1000).toFixed(1)}K`;
+    return `Rs ${rounded.toLocaleString()}`;
   };
 
   const statusPieData = Object.entries(orderStatus).map(([status, count]) => ({
