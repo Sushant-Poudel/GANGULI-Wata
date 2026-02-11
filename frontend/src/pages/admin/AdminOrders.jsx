@@ -408,7 +408,7 @@ export default function AdminOrders() {
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <p className="text-gold-500 font-bold text-xl">
-                          Rs {(order.total_amount || 0).toLocaleString()}
+                          Rs {Math.round(order.total_amount || 0).toLocaleString()}
                         </p>
                         <p className="text-white/40 text-sm">{order.items?.length || 0} items</p>
                       </div>
