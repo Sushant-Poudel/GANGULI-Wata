@@ -254,7 +254,7 @@ export default function AdminAnalytics() {
                       <p className="text-gray-400 text-sm">{product.quantity} sold</p>
                     </div>
                     <span className="text-green-400 font-semibold">
-                      Rs {product.revenue?.toLocaleString()}
+                      Rs {Math.round(product.revenue || 0).toLocaleString()}
                     </span>
                   </div>
                 ))}
