@@ -1591,7 +1591,7 @@ async def create_order(order_data: CreateOrderRequest):
     local_order = {
         "id": order_id,
         "customer_name": order_data.customer_name,
-        "customer_phone": order_data.customer_phone,
+        "customer_phone": formatted_phone,
         "customer_email": order_data.customer_email,
         "items": [item.model_dump() for item in order_data.items],
         "total_amount": order_data.total_amount,
