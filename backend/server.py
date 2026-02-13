@@ -3166,6 +3166,15 @@ async def get_sitemap():
     <priority>0.7</priority>
   </url>\n'''
     
+    # Add categories
+    for category in categories:
+        if category.get("slug"):
+            xml_content += f'''  <url>
+    <loc>{base_url}/category/{category["slug"]}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>\n'''
+    
     xml_content += '</urlset>'
     
     return Response(content=xml_content, media_type="application/xml")
