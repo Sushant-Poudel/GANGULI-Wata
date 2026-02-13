@@ -4,8 +4,7 @@ import {
   DollarSign, 
   Users,
   BarChart3,
-  ArrowUpRight,
-  ArrowDownRight
+  ChevronDown
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AdminLayout from '@/components/AdminLayout';
@@ -21,6 +20,14 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
+const TIME_PERIODS = [
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'This Week' },
+  { value: 'month', label: 'This Month' },
+  { value: 'lastMonth', label: 'Last Month' },
+  { value: 'total', label: 'Total' }
+];
+
 export default function AdminAnalytics() {
   const [overview, setOverview] = useState(null);
   const [topProducts, setTopProducts] = useState([]);
@@ -29,6 +36,11 @@ export default function AdminAnalytics() {
   const [profitStats, setProfitStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chartDays, setChartDays] = useState(30);
+  
+  // Time period states for each section
+  const [revenuePeriod, setRevenuePeriod] = useState('today');
+  const [profitPeriod, setProfitPeriod] = useState('today');
+  const [visitsPeriod, setVisitsPeriod] = useState('today');
 
   const fetchAnalytics = useCallback(async () => {
     setLoading(true);
@@ -65,15 +77,50 @@ export default function AdminAnalytics() {
 
   const formatCurrency = (amount) => {
     const rounded = Math.round(amount || 0);
-    if (rounded >= 100000) return `Rs ${(rounded / 100000).toFixed(1)}L`;
-    if (rounded >= 1000) return `Rs ${(rounded / 1000).toFixed(1)}K`;
+    if (rounded >= 100000) return `Rs ${Math.round(rounded / 100000)}L`;
+    if (rounded >= 1000) return `Rs ${Math.round(rounded / 1000)}K`;
     return `Rs ${rounded.toLocaleString()}`;
   };
 
-  const statusPieData = Object.entries(orderStatus).map(([status, count]) => ({
-    name: status.charAt(0).toUpperCase() + status.slice(1),
-    value: count
-  }));
+  const getRevenueData = (period) => {
+    if (!overview) return { revenue: 0, orders: 0 };
+    switch (period) {
+      case 'today': return overview.today || { revenue: 0, orders: 0 };
+      case 'week': return overview.week || { revenue: 0, orders: 0 };
+      case 'month': return overview.month || { revenue: 0, orders: 0 };
+      case 'lastMonth': return overview.lastMonth || { revenue: 0, orders: 0 };
+      case 'total': return overview.total || { revenue: 0, orders: 0 };
+      default: return { revenue: 0, orders: 0 };
+    }
+  };
+
+  const getProfitData = (period) => {
+    if (!profitStats) return { profit: 0 };
+    switch (period) {
+      case 'today': return profitStats.today || { profit: 0 };
+      case 'week': return profitStats.week || { profit: 0 };
+      case 'month': return profitStats.month || { profit: 0 };
+      case 'lastMonth': return profitStats.lastMonth || { profit: 0 };
+      case 'total': return profitStats.total || { profit: 0 };
+      default: return { profit: 0 };
+    }
+  };
+
+  const getVisitsData = (period) => {
+    if (!overview?.visits) return 0;
+    switch (period) {
+      case 'today': return overview.visits.today || 0;
+      case 'week': return overview.visits.week || 0;
+      case 'month': return overview.visits.month || 0;
+      case 'lastMonth': return overview.visits.lastMonth || 0;
+      case 'total': return overview.visits.total || 0;
+      default: return 0;
+    }
+  };
+
+  const getPeriodLabel = (period) => {
+    return TIME_PERIODS.find(p => p.value === period)?.label || 'Today';
+  };
 
   if (loading && !overview) {
     return (
@@ -85,6 +132,10 @@ export default function AdminAnalytics() {
     );
   }
 
+  const revenueData = getRevenueData(revenuePeriod);
+  const profitData = getProfitData(profitPeriod);
+  const visitsData = getVisitsData(visitsPeriod);
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -94,6 +145,7 @@ export default function AdminAnalytics() {
             value={chartDays}
             onChange={(e) => setChartDays(Number(e.target.value))}
             className="bg-zinc-800 border-zinc-700 text-white rounded-md px-3 py-2"
+            data-testid="chart-days-select"
           >
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
@@ -101,73 +153,58 @@ export default function AdminAnalytics() {
           </select>
         </div>
 
-        {/* Overview Stats - Only Today, Week, Month */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard
-            title="Today's Revenue"
-            value={formatCurrency(overview?.today?.revenue || 0)}
-            subtitle={`${overview?.today?.orders || 0} orders`}
-            icon={DollarSign}
-            trend={overview?.today?.revenue > 0 ? 'up' : 'neutral'}
-          />
-          <StatCard
-            title="This Week"
-            value={formatCurrency(overview?.week?.revenue || 0)}
-            subtitle={`${overview?.week?.orders || 0} orders`}
-            icon={TrendingUp}
-            trend="up"
-          />
-          <StatCard
-            title="This Month"
-            value={formatCurrency(overview?.month?.revenue || 0)}
-            subtitle={`${overview?.month?.orders || 0} orders`}
-            icon={BarChart3}
-            trend="up"
-          />
-        </div>
-
-        {/* Profit Analytics - Only Today, Week, Month */}
-        {profitStats && (
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-500" /> Profit Analytics
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { label: 'Today', data: profitStats.today },
-                  { label: 'This Week', data: profitStats.week },
-                  { label: 'This Month', data: profitStats.month }
-                ].map((period) => (
-                  <div key={period.label} className="bg-zinc-800 rounded-lg p-4 border border-zinc-700">
-                    <p className="text-gray-400 text-sm mb-3 font-medium">{period.label}</p>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Revenue:</span>
-                        <span className="text-white font-medium">Rs {Math.round(period.data?.revenue || 0).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Cost:</span>
-                        <span className="text-red-400 font-medium">Rs {Math.round(period.data?.cost || 0).toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-sm font-semibold border-t border-zinc-600 pt-2 mt-2">
-                        <span className="text-gray-400">Profit:</span>
-                        <span className={period.data?.profit >= 0 ? "text-green-400" : "text-red-400"}>
-                          Rs {Math.round(period.data?.profit || 0).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+        {/* Revenue Stats - Single Card with Period Selector */}
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardContent className="pt-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <p className="text-gray-400 text-sm">Revenue</p>
+                  <TimePeriodSelector 
+                    value={revenuePeriod} 
+                    onChange={setRevenuePeriod}
+                    testId="revenue-period-select"
+                  />
+                </div>
+                <p className="text-3xl font-bold text-white mt-2">{formatCurrency(revenueData.revenue)}</p>
+                <p className="text-gray-500 text-sm mt-1">{revenueData.orders || 0} orders</p>
               </div>
-              <p className="text-gray-500 text-xs mt-4">* Profit = Revenue - Cost Price (set in product variations)</p>
-            </CardContent>
-          </Card>
-        )}
+              <div className="p-3 rounded-lg bg-green-500/10">
+                <DollarSign className="w-6 h-6 text-green-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Website Visits Analytics */}
+        {/* Profit Analytics - Single Card with Only Profit */}
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" /> Profit Analytics
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-zinc-800 rounded-lg p-4 border border-zinc-700">
+              <div className="flex items-center gap-3 mb-3">
+                <p className="text-gray-400 text-sm font-medium">Period</p>
+                <TimePeriodSelector 
+                  value={profitPeriod} 
+                  onChange={setProfitPeriod}
+                  testId="profit-period-select"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-lg">Profit:</span>
+                <span className={`text-3xl font-bold ${(profitData.profit || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  Rs {Math.round(profitData.profit || 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+            <p className="text-gray-500 text-xs mt-4">* Profit = Revenue - Cost Price (set in product variations)</p>
+          </CardContent>
+        </Card>
+
+        {/* Website Visits Analytics - Single Card with Period Selector */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
@@ -175,22 +212,17 @@ export default function AdminAnalytics() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-zinc-800 rounded-lg p-4 border border-zinc-700">
-                <p className="text-gray-400 text-sm mb-2">Today</p>
-                <p className="text-2xl font-bold text-white">{overview?.visits?.today || 0}</p>
-                <p className="text-gray-500 text-xs mt-1">unique visitors</p>
+            <div className="bg-zinc-800 rounded-lg p-4 border border-zinc-700">
+              <div className="flex items-center gap-3 mb-3">
+                <p className="text-gray-400 text-sm">Period</p>
+                <TimePeriodSelector 
+                  value={visitsPeriod} 
+                  onChange={setVisitsPeriod}
+                  testId="visits-period-select"
+                />
               </div>
-              <div className="bg-zinc-800 rounded-lg p-4 border border-zinc-700">
-                <p className="text-gray-400 text-sm mb-2">This Week</p>
-                <p className="text-2xl font-bold text-white">{overview?.visits?.week || 0}</p>
-                <p className="text-gray-500 text-xs mt-1">unique visitors</p>
-              </div>
-              <div className="bg-zinc-800 rounded-lg p-4 border border-zinc-700">
-                <p className="text-gray-400 text-sm mb-2">This Month</p>
-                <p className="text-2xl font-bold text-white">{overview?.visits?.month || 0}</p>
-                <p className="text-gray-500 text-xs mt-1">unique visitors</p>
-              </div>
+              <p className="text-3xl font-bold text-white">{visitsData}</p>
+              <p className="text-gray-500 text-xs mt-1">unique visitors</p>
             </div>
             <p className="text-gray-500 text-xs mt-4">* Website visit tracking is based on unique page views</p>
           </CardContent>
@@ -217,11 +249,14 @@ export default function AdminAnalytics() {
                     stroke="#666"
                     tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   />
-                  <YAxis stroke="#666" tickFormatter={(val) => `Rs ${val}`} />
+                  <YAxis 
+                    stroke="#666" 
+                    tickFormatter={(val) => `Rs ${Math.round(val)}`} 
+                  />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#1f1f1f', border: '1px solid #333' }}
                     labelStyle={{ color: '#fff' }}
-                    formatter={(value) => [`Rs ${value}`, 'Revenue']}
+                    formatter={(value) => [`Rs ${Math.round(value)}`, 'Revenue']}
                   />
                   <Area 
                     type="monotone" 
@@ -267,21 +302,22 @@ export default function AdminAnalytics() {
   );
 }
 
-function StatCard({ title, value, subtitle, icon: Icon, trend }) {
+function TimePeriodSelector({ value, onChange, testId }) {
   return (
-    <Card className="bg-zinc-900 border-zinc-800">
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-gray-400 text-sm">{title}</p>
-            <p className="text-2xl font-bold text-white mt-1">{value}</p>
-            <p className="text-gray-500 text-sm mt-1">{subtitle}</p>
-          </div>
-          <div className={`p-3 rounded-lg ${trend === 'up' ? 'bg-green-500/10' : trend === 'down' ? 'bg-red-500/10' : 'bg-amber-500/10'}`}>
-            <Icon className={`w-6 h-6 ${trend === 'up' ? 'text-green-500' : trend === 'down' ? 'text-red-500' : 'text-amber-500'}`} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="relative inline-block">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="appearance-none bg-zinc-700 border border-zinc-600 text-white text-sm rounded-lg px-3 py-1.5 pr-8 cursor-pointer hover:bg-zinc-600 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500"
+        data-testid={testId}
+      >
+        {TIME_PERIODS.map((period) => (
+          <option key={period.value} value={period.value}>
+            {period.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+    </div>
   );
 }

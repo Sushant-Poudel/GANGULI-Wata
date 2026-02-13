@@ -118,6 +118,14 @@ export const promoCodesAPI = {
   validate: (code, subtotal) => api.post(`/promo-codes/validate?code=${encodeURIComponent(code)}&subtotal=${subtotal}`),
 };
 
+export const creditsAPI = {
+  getSettings: () => api.get('/credits/settings'),
+  updateSettings: (data) => api.put('/credits/settings', data),
+  getBalance: (email) => api.get(`/credits/balance?email=${encodeURIComponent(email)}`),
+  adjustCredits: (data) => api.post('/credits/adjust', data),
+  getLogs: (customerId) => api.get(`/credits/logs/${customerId}`),
+};
+
 export const contactsAPI = {
   getAll: () => api.get('/contacts'),
   getAllAdmin: () => api.get('/contacts/all'),

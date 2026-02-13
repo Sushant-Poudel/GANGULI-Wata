@@ -22,14 +22,14 @@ const DiscordIcon = () => (
 );
 
 export default function Footer() {
-  const [socialLinks, setSocialLinks] = useState({});
+  const [socialLinks, setSocialLinks] = useState([]);
   const [email, setEmail] = useState('');
   const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
     socialLinksAPI.getAll()
       .then(res => {
-        setSocialLinks(res.data || {});
+        setSocialLinks(Array.isArray(res.data) ? res.data : []);
       })
       .catch(() => {});
   }, []);
@@ -63,9 +63,8 @@ export default function Footer() {
     return null;
   };
 
-  const socialLinksArray = Object.entries(socialLinks)
-    .filter(([key, value]) => value && key !== 'updated_at' && key !== '_id')
-    .map(([platform, url]) => ({ platform, url }));
+  // socialLinks is now an array directly
+  const socialLinksArray = socialLinks.filter(link => link.url && link.platform);
 
   return (
     <footer className="bg-black border-t border-white/10" data-testid="footer">

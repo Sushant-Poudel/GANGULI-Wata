@@ -309,6 +309,21 @@ class PromoCode(BaseModel):
     stackable: bool = False
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+# Store Credit Models
+class CreditSettings(BaseModel):
+    cashback_percentage: float = 5.0  # Default 5% cashback
+    is_enabled: bool = True
+    eligible_categories: List[str] = []  # Empty means all categories
+    eligible_products: List[str] = []  # Empty means all products
+    min_order_amount: float = 0  # Minimum order to earn credits
+    usable_categories: List[str] = []  # Categories where credits can be used (empty = all)
+    usable_products: List[str] = []  # Products where credits can be used (empty = all)
+
+class CustomerCreditUpdate(BaseModel):
+    customer_id: str
+    amount: float  # Positive to add, negative to deduct
+    reason: str = "Manual adjustment"
+
 # ==================== HELPERS ====================
 
 def hash_password(password: str) -> str:
@@ -1475,22 +1490,9 @@ async def update_page(page_key: str, title: str, content: str, current_user: dic
 
 @api_router.get("/social-links")
 async def get_social_links():
-    """Get social links - returns single document with platform URLs"""
-    links_doc = await db.social_links.find_one({}, {"_id": 0})
-    if not links_doc:
-        return {
-            "whatsapp": "",
-            "facebook": "",
-            "instagram": "",
-            "tiktok": "",
-            "twitter": ""
-        }
-    
-    # Convert datetime to string if present
-    if "updated_at" in links_doc:
-        links_doc["updated_at"] = str(links_doc["updated_at"])
-    
-    return links_doc
+    """Get all social links as an array"""
+    links = await db.social_links.find({}, {"_id": 0}).to_list(100)
+    return links
 
 @api_router.post("/social-links", response_model=SocialLink)
 async def create_social_link(link_data: SocialLinkCreate, current_user: dict = Depends(get_current_user)):
@@ -1572,6 +1574,7 @@ class CreateOrderRequest(BaseModel):
     items: List[OrderItem]
     total_amount: float
     remark: Optional[str] = None
+    credits_used: float = 0  # Store credits used for this order
 
 @api_router.post("/orders/create")
 async def create_order(order_data: CreateOrderRequest):
@@ -1602,10 +1605,19 @@ async def create_order(order_data: CreateOrderRequest):
         "status": "pending",
         "payment_screenshot": None,
         "payment_method": None,
+        "credits_used": order_data.credits_used,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
 
     await db.orders.insert_one(local_order)
+    
+    # Don't deduct credits immediately - they will be deducted when order is confirmed
+    # Just mark the order with pending credits
+    if order_data.credits_used > 0:
+        await db.orders.update_one(
+            {"id": order_id},
+            {"$set": {"credits_pending": True}}
+        )
     
     # Sync order to Google Sheets (in background)
     try:
@@ -1741,8 +1753,22 @@ async def complete_order(order_id: str, current_user: dict = Depends(get_current
         }}
     )
     
-    # Send invoice email to customer if email exists
+    # Award credits for this order
     customer_email = order.get("customer_email")
+    credits_awarded = 0
+    if customer_email:
+        try:
+            # Calculate credits based on order total (excluding credits used)
+            order_total = order.get("total_amount", 0) or order.get("total", 0)
+            credits_used = order.get("credits_used", 0)
+            eligible_amount = order_total  # Award credits on full amount
+            
+            credit_result = await award_credits_for_order(order_id, customer_email, eligible_amount)
+            credits_awarded = credit_result.get("credits_awarded", 0)
+        except Exception as e:
+            logger.warning(f"Failed to award credits for order {order_id}: {e}")
+    
+    # Send invoice email to customer if email exists
     if customer_email:
         try:
             site_url = os.environ.get("SITE_URL", "https://gameshopnepal.com")
@@ -2182,6 +2208,160 @@ async def record_promo_usage(promo_code: str, order_id: str, customer_email: Opt
     return {"message": "Promo usage recorded"}
 
 
+# ==================== STORE CREDITS ====================
+
+@api_router.get("/credits/settings")
+async def get_credit_settings():
+    """Get credit system settings"""
+    settings = await db.credit_settings.find_one({"id": "main"}, {"_id": 0})
+    if not settings:
+        settings = {
+            "id": "main",
+            "cashback_percentage": 5.0,
+            "is_enabled": True,
+            "eligible_categories": [],
+            "eligible_products": [],
+            "min_order_amount": 0,
+            "usable_categories": [],
+            "usable_products": []
+        }
+    return settings
+
+@api_router.put("/credits/settings")
+async def update_credit_settings(settings: CreditSettings, current_user: dict = Depends(get_current_user)):
+    """Update credit system settings (admin only)"""
+    settings_dict = settings.model_dump()
+    settings_dict["id"] = "main"
+    await db.credit_settings.update_one({"id": "main"}, {"$set": settings_dict}, upsert=True)
+    return settings_dict
+
+@api_router.get("/credits/balance")
+async def get_customer_credit_balance(email: str):
+    """Get customer's credit balance"""
+    customer = await db.customers.find_one({"email": email})
+    if not customer:
+        return {"credit_balance": 0}
+    return {"credit_balance": customer.get("credit_balance", 0)}
+
+@api_router.post("/credits/adjust")
+async def adjust_customer_credits(data: CustomerCreditUpdate, current_user: dict = Depends(get_current_user)):
+    """Manually adjust customer credits (admin only)"""
+    customer = await db.customers.find_one({"id": data.customer_id})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    current_balance = customer.get("credit_balance", 0)
+    new_balance = max(0, current_balance + data.amount)  # Don't go below 0
+    
+    await db.customers.update_one(
+        {"id": data.customer_id},
+        {"$set": {"credit_balance": new_balance}}
+    )
+    
+    # Log the credit transaction
+    credit_log = {
+        "id": str(uuid.uuid4()),
+        "customer_id": data.customer_id,
+        "customer_email": customer.get("email"),
+        "amount": data.amount,
+        "reason": data.reason,
+        "balance_before": current_balance,
+        "balance_after": new_balance,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": current_user.get("id", "admin")
+    }
+    await db.credit_logs.insert_one(credit_log)
+    
+    return {
+        "success": True,
+        "previous_balance": current_balance,
+        "new_balance": new_balance,
+        "message": f"Credit {'added' if data.amount > 0 else 'deducted'} successfully"
+    }
+
+@api_router.get("/credits/logs/{customer_id}")
+async def get_customer_credit_logs(customer_id: str, current_user: dict = Depends(get_current_user)):
+    """Get credit transaction history for a customer"""
+    logs = await db.credit_logs.find({"customer_id": customer_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return logs
+
+@api_router.post("/credits/award")
+async def award_credits_for_order(order_id: str, customer_email: str, order_total: float):
+    """Award cashback credits for a completed order"""
+    settings = await db.credit_settings.find_one({"id": "main"})
+    if not settings or not settings.get("is_enabled", True):
+        return {"credits_awarded": 0, "message": "Credit system is disabled"}
+    
+    # Check minimum order amount
+    if order_total < settings.get("min_order_amount", 0):
+        return {"credits_awarded": 0, "message": "Order below minimum amount for credits"}
+    
+    # Calculate credits
+    cashback_percentage = settings.get("cashback_percentage", 5.0)
+    credits_to_award = round(order_total * (cashback_percentage / 100), 2)
+    
+    # Find or create customer
+    customer = await db.customers.find_one({"email": customer_email})
+    if customer:
+        current_balance = customer.get("credit_balance", 0)
+        new_balance = current_balance + credits_to_award
+        await db.customers.update_one(
+            {"email": customer_email},
+            {"$set": {"credit_balance": new_balance}}
+        )
+        
+        # Log the credit award
+        credit_log = {
+            "id": str(uuid.uuid4()),
+            "customer_id": customer.get("id"),
+            "customer_email": customer_email,
+            "amount": credits_to_award,
+            "reason": f"Cashback for order {order_id}",
+            "balance_before": current_balance,
+            "balance_after": new_balance,
+            "order_id": order_id,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.credit_logs.insert_one(credit_log)
+        
+        return {"credits_awarded": credits_to_award, "new_balance": new_balance}
+    
+    return {"credits_awarded": 0, "message": "Customer not found"}
+
+@api_router.post("/credits/use")
+async def use_credits(customer_email: str, amount: float, order_id: str):
+    """Deduct credits when used in an order"""
+    customer = await db.customers.find_one({"email": customer_email})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    current_balance = customer.get("credit_balance", 0)
+    if amount > current_balance:
+        raise HTTPException(status_code=400, detail="Insufficient credit balance")
+    
+    new_balance = current_balance - amount
+    await db.customers.update_one(
+        {"email": customer_email},
+        {"$set": {"credit_balance": new_balance}}
+    )
+    
+    # Log the credit usage
+    credit_log = {
+        "id": str(uuid.uuid4()),
+        "customer_id": customer.get("id"),
+        "customer_email": customer_email,
+        "amount": -amount,
+        "reason": f"Used for order {order_id}",
+        "balance_before": current_balance,
+        "balance_after": new_balance,
+        "order_id": order_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.credit_logs.insert_one(credit_log)
+    
+    return {"success": True, "amount_used": amount, "new_balance": new_balance}
+
+
 # ==================== BUNDLE DEALS ====================
 
 class BundleProduct(BaseModel):
@@ -2562,6 +2742,7 @@ async def update_order_status(order_id: str, status_data: OrderStatusUpdate, cur
         raise HTTPException(status_code=404, detail="Order not found")
     
     old_status = order.get("status", "pending")
+    new_status = status_data.status.lower()
     
     # Update order status
     await db.orders.update_one(
@@ -2581,16 +2762,53 @@ async def update_order_status(order_id: str, status_data: OrderStatusUpdate, cur
     }
     await db.order_status_history.insert_one(history_entry)
     
+    credits_deducted = 0
+    credits_awarded = 0
+    customer_email = order.get("customer_email")
+    
+    # Deduct credits when order is CONFIRMED (not pending anymore)
+    if new_status == "confirmed" and old_status.lower() != "confirmed":
+        credits_used = order.get("credits_used", 0)
+        if credits_used > 0 and customer_email and order.get("credits_pending"):
+            try:
+                await use_credits(customer_email, credits_used, order_id)
+                credits_deducted = credits_used
+                # Mark credits as deducted
+                await db.orders.update_one(
+                    {"id": order_id},
+                    {"$set": {"credits_pending": False, "credits_deducted": True}}
+                )
+                logger.info(f"Deducted {credits_used} credits from {customer_email} for confirmed order {order_id}")
+            except Exception as e:
+                logger.warning(f"Failed to deduct credits for order {order_id}: {e}")
+    
+    # Award credits when order is COMPLETED
+    if new_status == "completed" and old_status.lower() != "completed":
+        if customer_email:
+            try:
+                order_total = order.get("total_amount", 0)
+                credit_result = await award_credits_for_order(order_id, customer_email, order_total)
+                credits_awarded = credit_result.get("credits_awarded", 0)
+                if credits_awarded > 0:
+                    logger.info(f"Awarded {credits_awarded} credits to {customer_email} for completed order {order_id}")
+            except Exception as e:
+                logger.warning(f"Failed to award credits for order {order_id}: {e}")
+    
     # Send status update email
-    if order.get("customer_email"):
+    if customer_email:
         try:
             subject, html, text = get_order_status_update_email(order, status_data.status)
-            send_email(order["customer_email"], subject, html, text)
-            logger.info(f"Order status update email sent to {order['customer_email']}")
+            send_email(customer_email, subject, html, text)
+            logger.info(f"Order status update email sent to {customer_email}")
         except Exception as e:
             logger.error(f"Failed to send status update email: {e}")
     
-    return {"message": f"Order status updated to {status_data.status}"}
+    response = {"message": f"Order status updated to {status_data.status}"}
+    if credits_deducted > 0:
+        response["credits_deducted"] = credits_deducted
+    if credits_awarded > 0:
+        response["credits_awarded"] = credits_awarded
+    return response
 
 @api_router.get("/orders/{order_id}")
 async def get_order_details(order_id: str, current_user: dict = Depends(get_current_user)):
@@ -2617,6 +2835,12 @@ async def get_analytics_overview(current_user: dict = Depends(get_current_user))
     week_ago = (now - timedelta(days=7)).isoformat()
     month_ago = (now - timedelta(days=30)).isoformat()
     
+    # Calculate last month date range
+    first_of_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_month_end = (first_of_this_month - timedelta(days=1)).isoformat()
+    last_month_start = first_of_this_month.replace(month=first_of_this_month.month - 1 if first_of_this_month.month > 1 else 12, 
+                                                    year=first_of_this_month.year if first_of_this_month.month > 1 else first_of_this_month.year - 1).isoformat()
+    
     # Today's stats
     today_orders = await db.orders.count_documents({"created_at": {"$gte": today_start}})
     today_revenue_cursor = await db.orders.aggregate([
@@ -2641,19 +2865,45 @@ async def get_analytics_overview(current_user: dict = Depends(get_current_user))
     ]).to_list(1)
     month_revenue = month_revenue_cursor[0]["total"] if month_revenue_cursor else 0
     
+    # Last month stats
+    last_month_orders = await db.orders.count_documents({
+        "created_at": {"$gte": last_month_start, "$lte": last_month_end}
+    })
+    last_month_revenue_cursor = await db.orders.aggregate([
+        {"$match": {"created_at": {"$gte": last_month_start, "$lte": last_month_end}, "status": {"$ne": "cancelled"}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+    ]).to_list(1)
+    last_month_revenue = last_month_revenue_cursor[0]["total"] if last_month_revenue_cursor else 0
+    
+    # Total stats (all time)
+    total_orders = await db.orders.count_documents({})
+    total_revenue_cursor = await db.orders.aggregate([
+        {"$match": {"status": {"$ne": "cancelled"}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+    ]).to_list(1)
+    total_revenue = total_revenue_cursor[0]["total"] if total_revenue_cursor else 0
+    
     # Website visits
     today_visits = await db.visits.count_documents({"date": today_start[:10]})
     week_visits = await db.visits.count_documents({"created_at": {"$gte": week_ago}})
     month_visits = await db.visits.count_documents({"created_at": {"$gte": month_ago}})
+    last_month_visits = await db.visits.count_documents({
+        "created_at": {"$gte": last_month_start, "$lte": last_month_end}
+    })
+    total_visits = await db.visits.count_documents({})
     
     return {
         "today": {"orders": today_orders, "revenue": today_revenue},
         "week": {"orders": week_orders, "revenue": week_revenue},
         "month": {"orders": month_orders, "revenue": month_revenue},
+        "lastMonth": {"orders": last_month_orders, "revenue": last_month_revenue},
+        "total": {"orders": total_orders, "revenue": total_revenue},
         "visits": {
             "today": today_visits,
             "week": week_visits,
-            "month": month_visits
+            "month": month_visits,
+            "lastMonth": last_month_visits,
+            "total": total_visits
         }
     }
 
@@ -2779,6 +3029,12 @@ async def get_profit_analytics(current_user: dict = Depends(get_current_user)):
     week_ago = (now - timedelta(days=7)).isoformat()
     month_ago = (now - timedelta(days=30)).isoformat()
     
+    # Calculate last month date range
+    first_of_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_month_end = (first_of_this_month - timedelta(days=1)).isoformat()
+    last_month_start = first_of_this_month.replace(month=first_of_this_month.month - 1 if first_of_this_month.month > 1 else 12, 
+                                                    year=first_of_this_month.year if first_of_this_month.month > 1 else first_of_this_month.year - 1).isoformat()
+    
     # Get all completed orders (case-insensitive status check)
     all_orders = await db.orders.find({}).to_list(10000)
     completed_orders = [o for o in all_orders if (o.get("status", "").lower() in ["completed", "delivered"])]
@@ -2810,11 +3066,14 @@ async def get_profit_analytics(current_user: dict = Depends(get_current_user)):
     today_orders = [o for o in completed_orders if o.get("created_at", "") >= today_start]
     week_orders = [o for o in completed_orders if o.get("created_at", "") >= week_ago]
     month_orders = [o for o in completed_orders if o.get("created_at", "") >= month_ago]
+    last_month_orders = [o for o in completed_orders if last_month_start <= o.get("created_at", "") <= last_month_end]
     
     return {
         "today": calculate_profit(today_orders),
         "week": calculate_profit(week_orders),
         "month": calculate_profit(month_orders),
+        "lastMonth": calculate_profit(last_month_orders),
+        "total": calculate_profit(completed_orders),
         "all_time": calculate_profit(completed_orders)
     }
 
@@ -3041,54 +3300,6 @@ async def customer_login(data: CustomerLogin):
             }
         }
 
-async def get_current_customer(authorization: str = Header(None)):
-    """Dependency to get current logged-in customer"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    token = authorization.replace("Bearer ", "")
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        customer = await db.customers.find_one({"id": payload["customer_id"]}, {"_id": 0, "otp": 0, "otp_expires": 0})
-        if not customer:
-            raise HTTPException(status_code=401, detail="Customer not found")
-        return customer
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-@api_router.get("/customers/me")
-async def get_customer_profile(customer: dict = Depends(get_current_customer)):
-    """Get current customer profile"""
-    return customer
-
-@api_router.put("/customers/me")
-async def update_customer_profile(profile: CustomerProfile, customer: dict = Depends(get_current_customer)):
-    """Update customer profile"""
-    update_data = {}
-    if profile.name is not None:
-        update_data["name"] = profile.name
-    if profile.email is not None:
-        update_data["email"] = profile.email
-    
-    if update_data:
-        await db.customers.update_one({"id": customer["id"]}, {"$set": update_data})
-    
-    updated = await db.customers.find_one({"id": customer["id"]}, {"_id": 0, "otp": 0, "otp_expires": 0})
-    return updated
-
-@api_router.get("/customers/me/orders")
-async def get_customer_orders(customer: dict = Depends(get_current_customer)):
-    """Get customer's order history"""
-    # Find orders by phone number
-    orders = await db.orders.find(
-        {"customer_phone": customer["phone"]},
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(100)
-    
-    return orders
-
 @api_router.post("/customers/sync-from-takeapp")
 async def sync_customers_from_takeapp(current_user: dict = Depends(get_current_user)):
     """Admin: Sync customer data from Take.app orders"""
@@ -3147,8 +3358,48 @@ async def sync_customers_from_takeapp(current_user: dict = Depends(get_current_u
 
 @api_router.get("/customers")
 async def get_all_customers(current_user: dict = Depends(get_current_user)):
-    """Admin: Get all customers"""
+    """Admin: Get all customers with order stats"""
     customers = await db.customers.find({}, {"_id": 0, "otp": 0, "otp_expires": 0}).sort("created_at", -1).to_list(1000)
+    
+    # Get order stats for all customers
+    order_stats = await db.orders.aggregate([
+        {"$group": {
+            "_id": "$customer_email",
+            "total_orders": {"$sum": 1},
+            "total_spent": {"$sum": "$total_amount"},
+            "phone": {"$first": "$customer_phone"}
+        }}
+    ]).to_list(10000)
+    
+    # Create lookup by email
+    stats_by_email = {stat["_id"]: stat for stat in order_stats if stat["_id"]}
+    
+    # Also aggregate by phone for customers without email
+    phone_stats = await db.orders.aggregate([
+        {"$group": {
+            "_id": "$customer_phone",
+            "total_orders": {"$sum": 1},
+            "total_spent": {"$sum": "$total_amount"}
+        }}
+    ]).to_list(10000)
+    
+    stats_by_phone = {stat["_id"]: stat for stat in phone_stats if stat["_id"]}
+    
+    # Merge order stats into customers
+    for customer in customers:
+        email = customer.get("email")
+        phone = customer.get("phone") or customer.get("whatsapp_number")
+        
+        # Try to find stats by email first, then by phone
+        stats = stats_by_email.get(email) or stats_by_phone.get(phone) or {}
+        
+        customer["total_orders"] = stats.get("total_orders", 0)
+        customer["total_spent"] = stats.get("total_spent", 0)
+        
+        # If customer doesn't have phone, try to get it from orders
+        if not customer.get("phone") and stats.get("phone"):
+            customer["phone"] = stats.get("phone")
+    
     return customers
 
 # ==================== ROOT ====================

@@ -17,7 +17,12 @@ export default function AdminDashboard() {
           reviewsAPI.getAll(),
           socialLinksAPI.getAll()
         ]);
-        setStats({ products: productsRes.data.length, categories: categoriesRes.data.length, reviews: reviewsRes.data.length, socialLinks: linksRes.data.length });
+        setStats({ 
+          products: productsRes.data.length, 
+          categories: categoriesRes.data.length, 
+          reviews: reviewsRes.data.length, 
+          socialLinks: Array.isArray(linksRes.data) ? linksRes.data.length : 0 
+        });
       } catch (error) {
         console.error('Error fetching stats:', error);
       } finally {

@@ -111,12 +111,7 @@ export default function CustomerAuthModal({ isOpen, onClose, onSuccess }) {
             {step === 'email' 
               ? 'Get instant access to your order history and wishlist'
               : (
-                <>
-                  <p>We've sent a 6-digit code to your email address: <span className="text-gold-500 font-semibold">{email}</span></p>
-                  <p className="text-xs text-yellow-500 mt-2 bg-yellow-500/10 px-3 py-2 rounded border border-yellow-500/20">
-                    ⚠️ Debug Mode: Check your email for OTP or check console/toast notification
-                  </p>
-                </>
+                <p>We've sent a 6-digit code to your email address: <span className="text-gold-500 font-semibold">{email}</span></p>
               )
             }
           </DialogDescription>
@@ -193,9 +188,6 @@ export default function CustomerAuthModal({ isOpen, onClose, onSuccess }) {
 
             <div className="text-xs text-white/40 text-center space-y-2">
               <p>No password needed! We'll send a one-time code to your email address.</p>
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded px-3 py-2 text-yellow-500">
-                ⚠️ <span className="font-semibold">Debug Mode Active:</span> OTP will be shown in toast notification
-              </div>
             </div>
           </form>
         ) : (

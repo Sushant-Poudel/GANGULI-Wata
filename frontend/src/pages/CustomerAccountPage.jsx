@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, Heart, User, LogOut, ShoppingBag, Calendar, DollarSign, Edit, Save, X, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package, Heart, User, LogOut, ShoppingBag, Calendar, DollarSign, Edit, Save, X, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Coins } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { creditsAPI } from '@/lib/api';
 
 const API_URL = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -23,6 +24,7 @@ export default function CustomerAccountPage() {
   const [editForm, setEditForm] = useState({ name: '', phone: '' });
   const [saving, setSaving] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [creditBalance, setCreditBalance] = useState(0);
 
   const getStatusConfig = (status) => {
     // Normalize status to lowercase for matching
@@ -71,6 +73,17 @@ export default function CustomerAccountPage() {
 
       setOrders(ordersRes.data);
       setStats(statsRes.data);
+      
+      // Fetch credit balance
+      const customerInfo = JSON.parse(localStorage.getItem('customer_info') || '{}');
+      if (customerInfo.email) {
+        try {
+          const creditRes = await creditsAPI.getBalance(customerInfo.email);
+          setCreditBalance(creditRes.data.credit_balance || 0);
+        } catch (e) {
+          console.log('Could not fetch credit balance');
+        }
+      }
     } catch (error) {
       toast.error('Failed to load account data');
     } finally {
@@ -167,7 +180,7 @@ export default function CustomerAccountPage() {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
             <Card className="bg-card border-white/10">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -188,6 +201,18 @@ export default function CustomerAccountPage() {
                     <p className="text-3xl font-bold text-gold-500">Rs {stats.total_spent.toLocaleString()}</p>
                   </div>
                   <DollarSign className="h-10 w-10 text-gold-500/40" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-green-500/20 bg-green-500/5">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/60 text-sm">Store Credits</p>
+                    <p className="text-3xl font-bold text-green-500">Rs {creditBalance.toLocaleString()}</p>
+                  </div>
+                  <Coins className="h-10 w-10 text-green-500/40" />
                 </div>
               </CardContent>
             </Card>

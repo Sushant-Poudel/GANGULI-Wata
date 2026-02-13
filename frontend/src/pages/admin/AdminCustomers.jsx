@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Users, RefreshCw, Phone, Mail, ShoppingBag, DollarSign, Download } from 'lucide-react';
+import { Users, RefreshCw, Phone, Mail, ShoppingBag, DollarSign, Download, Coins, Plus, Minus } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import api from '@/lib/api';
+import api, { creditsAPI } from '@/lib/api';
 
 export default function AdminCustomers() {
   const [customers, setCustomers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [creditDialogOpen, setCreditDialogOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditReason, setCreditReason] = useState('');
 
   const fetchCustomers = async () => {
     try {
@@ -24,6 +31,32 @@ export default function AdminCustomers() {
   useEffect(() => {
     fetchCustomers();
   }, []);
+
+  const openCreditDialog = (customer) => {
+    setSelectedCustomer(customer);
+    setCreditAmount('');
+    setCreditReason('');
+    setCreditDialogOpen(true);
+  };
+
+  const handleCreditAdjust = async (isAdd) => {
+    if (!selectedCustomer || !creditAmount) return;
+    
+    const amount = isAdd ? parseFloat(creditAmount) : -parseFloat(creditAmount);
+    
+    try {
+      await creditsAPI.adjustCredits({
+        customer_id: selectedCustomer.id,
+        amount: amount,
+        reason: creditReason || (isAdd ? 'Manual credit addition' : 'Manual credit deduction')
+      });
+      toast.success(`Credits ${isAdd ? 'added' : 'deducted'} successfully`);
+      setCreditDialogOpen(false);
+      fetchCustomers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to adjust credits');
+    }
+  };
 
   const handleExportCSV = () => {
     const headers = ['Phone', 'Name', 'Email', 'Total Orders', 'Total Spent', 'Created At'];
@@ -145,7 +178,9 @@ export default function AdminCustomers() {
                       <th className="text-left text-gray-400 text-sm py-3 px-2">Contact</th>
                       <th className="text-center text-gray-400 text-sm py-3 px-2">Orders</th>
                       <th className="text-right text-gray-400 text-sm py-3 px-2">Total Spent</th>
+                      <th className="text-right text-gray-400 text-sm py-3 px-2">Credits</th>
                       <th className="text-right text-gray-400 text-sm py-3 px-2">Joined</th>
+                      <th className="text-center text-gray-400 text-sm py-3 px-2">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -177,8 +212,25 @@ export default function AdminCustomers() {
                             Rs {(customer.total_spent || 0).toLocaleString()}
                           </span>
                         </td>
+                        <td className="py-3 px-2 text-right">
+                          <span className="text-green-500 font-medium flex items-center justify-end gap-1">
+                            <Coins className="w-3 h-3" />
+                            Rs {(customer.credit_balance || 0).toLocaleString()}
+                          </span>
+                        </td>
                         <td className="py-3 px-2 text-right text-gray-400 text-sm">
                           {customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openCreditDialog(customer)}
+                            className="text-green-500 hover:text-green-400"
+                            data-testid={`adjust-credit-${customer.id}`}
+                          >
+                            <Coins className="w-4 h-4" />
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -188,6 +240,66 @@ export default function AdminCustomers() {
             )}
           </CardContent>
         </Card>
+
+        {/* Credit Adjustment Dialog */}
+        <Dialog open={creditDialogOpen} onOpenChange={setCreditDialogOpen}>
+          <DialogContent className="bg-zinc-900 border-zinc-800 text-white">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Coins className="h-5 w-5 text-amber-500" />
+                Adjust Credits - {selectedCustomer?.name || selectedCustomer?.email}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-zinc-800 rounded-lg p-4">
+                <p className="text-white/60 text-sm">Current Balance</p>
+                <p className="text-2xl font-bold text-green-500">Rs {(selectedCustomer?.credit_balance || 0).toLocaleString()}</p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Amount (Rs)</Label>
+                <Input
+                  type="number"
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(e.target.value)}
+                  className="bg-black border-white/20"
+                  placeholder="Enter amount"
+                  data-testid="credit-amount-input"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Reason</Label>
+                <Input
+                  value={creditReason}
+                  onChange={(e) => setCreditReason(e.target.value)}
+                  className="bg-black border-white/20"
+                  placeholder="Reason for adjustment"
+                  data-testid="credit-reason-input"
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleCreditAdjust(true)}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  disabled={!creditAmount || parseFloat(creditAmount) <= 0}
+                  data-testid="add-credit-btn"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add Credits
+                </Button>
+                <Button
+                  onClick={() => handleCreditAdjust(false)}
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                  disabled={!creditAmount || parseFloat(creditAmount) <= 0}
+                  data-testid="deduct-credit-btn"
+                >
+                  <Minus className="w-4 h-4 mr-1" /> Deduct Credits
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );

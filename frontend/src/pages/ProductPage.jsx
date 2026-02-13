@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, ShoppingCart, Loader2, AlertCircle, Ticket, X, Plus, Minus, AlertTriangle, Heart } from 'lucide-react';
+import { ArrowLeft, Check, ShoppingCart, Loader2, AlertCircle, Ticket, X, Plus, Minus, AlertTriangle, Heart, Coins, Info } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
@@ -12,11 +12,15 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { productsAPI, ordersAPI, promoCodesAPI, settingsAPI, sendTrustpilotInvitation } from '@/lib/api';
+import { productsAPI, ordersAPI, promoCodesAPI, settingsAPI, sendTrustpilotInvitation, creditsAPI } from '@/lib/api';
 import { useCart } from '@/components/Cart';
 import { useWishlist } from '@/components/Wishlist';
 import { useLanguage } from '@/components/Language';
+import { useCustomer } from '@/components/CustomerAccount';
+import CustomerAuth from '@/components/CustomerAuth';
 import { FlashSaleTimer } from '@/components/FlashSale';
 
 export default function ProductPage() {
@@ -25,6 +29,7 @@ export default function ProductPage() {
   const { t } = useLanguage();
   const { addToCart, setIsOpen: setCartOpen } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
+  const { customer } = useCustomer();
   
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
@@ -43,15 +48,47 @@ export default function ProductPage() {
   // Pricing settings
   const [pricingSettings, setPricingSettings] = useState({ service_charge: 0, tax_percentage: 0, tax_label: 'Tax' });
 
+  // Store Credits
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [useCredits, setUseCredits] = useState(false);
+  const [creditSettings, setCreditSettings] = useState({ cashback_percentage: 5, is_enabled: true });
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+
+  // Auto-fill form for logged-in users
+  useEffect(() => {
+    if (customer) {
+      setOrderForm(prev => ({
+        ...prev,
+        customer_name: customer.name || '',
+        customer_email: customer.email || '',
+        customer_phone: customer.whatsapp_number || customer.phone || ''
+      }));
+      // Fetch credit balance
+      fetchCreditBalance(customer.email);
+    }
+  }, [customer]);
+
+  const fetchCreditBalance = async (email) => {
+    if (!email) return;
+    try {
+      const res = await creditsAPI.getBalance(email);
+      setCreditBalance(res.data.credit_balance || 0);
+    } catch (e) {
+      console.log('Could not fetch credit balance');
+    }
+  };
+
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const [productRes, settingsRes] = await Promise.all([
+        const [productRes, settingsRes, creditRes] = await Promise.all([
           productsAPI.getOne(productSlug),
-          settingsAPI.get().catch(() => ({ data: { service_charge: 0, tax_percentage: 0, tax_label: 'Tax' } }))
+          settingsAPI.get().catch(() => ({ data: { service_charge: 0, tax_percentage: 0, tax_label: 'Tax' } })),
+          creditsAPI.getSettings().catch(() => ({ data: { cashback_percentage: 5, is_enabled: true } }))
         ]);
         setProduct(productRes.data);
         setPricingSettings(settingsRes.data);
+        setCreditSettings(creditRes.data);
         if (productRes.data.variations?.length > 0) setSelectedVariation(productRes.data.variations[0].id);
         
         // Fetch related products
@@ -88,7 +125,11 @@ export default function ProductPage() {
   const serviceCharge = parseFloat(pricingSettings.service_charge) || 0;
   const taxPercentage = parseFloat(pricingSettings.tax_percentage) || 0;
   const taxAmount = afterDiscount * (taxPercentage / 100);
-  const total = afterDiscount + serviceCharge + taxAmount;
+  const totalBeforeCredits = afterDiscount + serviceCharge + taxAmount;
+  
+  // Calculate credits to use (max available or total, whichever is lower)
+  const creditsToUse = useCredits && customer ? Math.min(creditBalance, totalBeforeCredits) : 0;
+  const total = Math.max(0, totalBeforeCredits - creditsToUse);
 
   const handleQuantityChange = (delta) => {
     const newQty = quantity + delta;
@@ -143,6 +184,9 @@ export default function ProductPage() {
       if (promoDiscount) {
         fullRemark += `Promo Code: ${promoDiscount.code} (-Rs ${promoDiscount.discount_amount})\n`;
       }
+      if (creditsToUse > 0) {
+        fullRemark += `Store Credits Used: Rs ${creditsToUse}\n`;
+      }
       if (orderForm.remark) fullRemark += `Notes: ${orderForm.remark}`;
 
       const orderPayload = {
@@ -151,10 +195,44 @@ export default function ProductPage() {
         customer_email: orderForm.customer_email || null,
         items: [{ name: product.name, price: currentVariation.price, quantity: quantity, variation: currentVariation.name }],
         total_amount: total,
+        credits_used: creditsToUse,
         remark: fullRemark.trim() || null
       };
 
       const res = await ordersAPI.create(orderPayload);
+      const orderId = res.data.order_id;
+      
+      // If total is 0 (fully paid with credits), redirect to WhatsApp directly
+      if (total === 0 && creditsToUse > 0) {
+        const siteUrl = window.location.origin;
+        const invoiceUrl = `${siteUrl}/invoice/${orderId}`;
+        
+        const whatsappMessage = `*#${orderId.slice(0, 8).toUpperCase()}*
+
+*${quantity}x* ${product.name} - ${currentVariation.name} – Rs ${currentVariation.price.toLocaleString()}
+
+Subtotal: Rs ${subtotal.toLocaleString()}
+Store Credits Used: Rs ${creditsToUse.toLocaleString()}
+*Total: Rs 0 (Paid with Credits)*
+
+Customer: *${orderForm.customer_name}* ${orderForm.customer_phone} ${orderForm.customer_email || ''}
+
+Payment: *Store Credits* (Full Payment)
+
+See invoice: ${invoiceUrl}`;
+
+        const encodedMessage = encodeURIComponent(whatsappMessage);
+        const whatsappNumber = '9779743488871';
+        const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+        
+        setIsOrderDialogOpen(false);
+        toast.success('Order placed with store credits! Opening WhatsApp...');
+        
+        setTimeout(() => {
+          window.location.href = whatsappUrl;
+        }, 500);
+        return;
+      }
       
       // Redirect to our custom payment page with all required data
       const params = new URLSearchParams({
@@ -174,7 +252,7 @@ export default function ProductPage() {
         sendTrustpilotInvitation({
           email: orderForm.customer_email,
           name: orderForm.customer_name,
-          orderId: res.data.order_id,
+          orderId: orderId,
           productSlug: product.slug || product.id,
           productImage: product.image_url,
           productName: `${product.name} - ${currentVariation.name}`,
@@ -182,7 +260,7 @@ export default function ProductPage() {
       }
       
       // Navigate to payment page
-      navigate(`/payment/${res.data.order_id}?${params.toString()}`);
+      navigate(`/payment/${orderId}?${params.toString()}`);
     } catch (error) {
       console.error('Order error:', error);
       toast.error('Failed to place order. Please try again.');
@@ -402,9 +480,20 @@ export default function ProductPage() {
               </div>
 
               <div className="space-y-3">
-                <div><Label className="text-white/80 text-sm">{t('fullName')} *</Label><Input value={orderForm.customer_name} onChange={(e) => setOrderForm({...orderForm, customer_name: e.target.value})} className="bg-black border-white/20 mt-1 text-base" placeholder="Enter your full name" required /></div>
-                <div><Label className="text-white/80 text-sm">{t('phoneNumber')} *</Label><Input value={orderForm.customer_phone} onChange={(e) => setOrderForm({...orderForm, customer_phone: e.target.value})} className="bg-black border-white/20 mt-1 text-base" placeholder="9801234567" required /></div>
-                <div><Label className="text-white/80 text-sm">{t('email')}</Label><Input type="email" value={orderForm.customer_email} onChange={(e) => setOrderForm({...orderForm, customer_email: e.target.value})} className="bg-black border-white/20 mt-1 text-base" placeholder="your@email.com" /></div>
+                {customer ? (
+                  <div className="bg-zinc-800/50 rounded-lg p-3 space-y-2">
+                    <p className="text-gray-400 text-xs mb-2">Logged in as:</p>
+                    <p className="text-white font-medium">{orderForm.customer_name}</p>
+                    <p className="text-gray-300 text-sm">{orderForm.customer_phone}</p>
+                    {orderForm.customer_email && <p className="text-gray-300 text-sm">{orderForm.customer_email}</p>}
+                  </div>
+                ) : (
+                  <>
+                    <div><Label className="text-white/80 text-sm">{t('fullName')} *</Label><Input value={orderForm.customer_name} onChange={(e) => setOrderForm({...orderForm, customer_name: e.target.value})} className="bg-black border-white/20 mt-1 text-base" placeholder="Enter your full name" required data-testid="order-name-input" /></div>
+                    <div><Label className="text-white/80 text-sm">{t('phoneNumber')} *</Label><Input value={orderForm.customer_phone} onChange={(e) => setOrderForm({...orderForm, customer_phone: e.target.value})} className="bg-black border-white/20 mt-1 text-base" placeholder="9801234567" required data-testid="order-phone-input" /></div>
+                    <div><Label className="text-white/80 text-sm">{t('email')}</Label><Input type="email" value={orderForm.customer_email} onChange={(e) => setOrderForm({...orderForm, customer_email: e.target.value})} className="bg-black border-white/20 mt-1 text-base" placeholder="your@email.com" data-testid="order-email-input" /></div>
+                  </>
+                )}
 
                 {product.custom_fields && product.custom_fields.length > 0 && (
                   <div className="pt-2 border-t border-white/10 space-y-3">
@@ -416,6 +505,66 @@ export default function ProductPage() {
 
                 <div><Label className="text-white/80 text-sm">{t('notes')}</Label><Textarea value={orderForm.remark} onChange={(e) => setOrderForm({...orderForm, remark: e.target.value})} className="bg-black border-white/20 mt-1 text-base min-h-[60px]" placeholder="Any special instructions..." /></div>
               </div>
+
+              {/* Store Credits Section */}
+              {creditSettings.is_enabled && (
+                <div className="pt-3 border-t border-white/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-white/80 text-sm flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-green-500" /> Use Store Credits
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="w-3 h-3 text-gray-500 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-zinc-800 border-zinc-700 text-white max-w-xs">
+                            <p className="text-sm">
+                              <span className="font-semibold text-amber-500">How to earn credits:</span><br/>
+                              Purchase products and get {creditSettings.cashback_percentage}% cashback as store credits when your order is completed!
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </Label>
+                  </div>
+                  
+                  {customer ? (
+                    <div className="bg-zinc-800/50 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-white text-sm">Available: <span className="text-green-500 font-semibold">Rs {creditBalance.toLocaleString()}</span></p>
+                          {useCredits && creditsToUse > 0 && (
+                            <p className="text-green-400 text-xs mt-1">Using Rs {creditsToUse.toFixed(2)} credits</p>
+                          )}
+                        </div>
+                        <Switch
+                          checked={useCredits}
+                          onCheckedChange={setUseCredits}
+                          disabled={creditBalance <= 0}
+                          data-testid="use-credits-switch-product"
+                        />
+                      </div>
+                      {creditBalance <= 0 && (
+                        <p className="text-gray-500 text-xs mt-2">No credits available. Earn credits by making purchases!</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-zinc-800/50 rounded-lg p-3">
+                      <p className="text-gray-400 text-sm mb-2">Want to use store credits?</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowLoginDialog(true)}
+                        className="border-amber-500 text-amber-500 hover:bg-amber-500 hover:text-black"
+                        data-testid="login-for-credits-btn-product"
+                      >
+                        Login to use credits
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Promo Code Section */}
               <div className="pt-3 border-t border-white/10">
@@ -481,6 +630,13 @@ export default function ProductPage() {
                     <span className="text-white">Rs {taxAmount.toFixed(2)}</span>
                   </div>
                 )}
+
+                {creditsToUse > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-green-400 flex items-center gap-1"><Coins className="w-3 h-3" /> Credits Used</span>
+                    <span className="text-green-400">-Rs {creditsToUse.toFixed(2)}</span>
+                  </div>
+                )}
                 
                 <div className="border-t border-white/10 pt-2 flex items-center justify-between">
                   <span className="text-white font-semibold">{t('total')}</span>
@@ -497,6 +653,16 @@ export default function ProductPage() {
             </form>
         </DialogContent>
       </Dialog>
+
+      {/* Login Dialog for Credits */}
+      <CustomerAuth 
+        isOpen={showLoginDialog} 
+        onClose={() => setShowLoginDialog(false)} 
+        onSuccess={() => {
+          setShowLoginDialog(false);
+          window.location.reload();
+        }}
+      />
 
       <Footer />
     </div>

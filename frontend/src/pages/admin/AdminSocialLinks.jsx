@@ -28,7 +28,7 @@ export default function AdminSocialLinks() {
   const [formData, setFormData] = useState(emptyLink);
 
   const fetchLinks = async () => {
-    try { const res = await socialLinksAPI.getAll(); setLinks(res.data); } catch (error) { console.error('Error:', error); } finally { setIsLoading(false); }
+    try { const res = await socialLinksAPI.getAll(); setLinks(Array.isArray(res.data) ? res.data : []); } catch (error) { console.error('Error:', error); } finally { setIsLoading(false); }
   };
 
   useEffect(() => { fetchLinks(); }, []);

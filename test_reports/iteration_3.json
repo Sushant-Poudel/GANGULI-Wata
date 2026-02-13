@@ -29,7 +29,7 @@
     "data_issues": [
       {
         "issue": "Product image URLs pointing to wrong domain",
-        "details": "All product image_url fields contain URLs like 'https://darkdigital.preview.emergentagent.com/api/uploads/...' which return 404. Images need to be re-uploaded or URLs updated to current domain.",
+        "details": "All product image_url fields contain URLs like 'https://yobro-checkout-flow.preview.emergentagent.com/api/uploads/...' which return 404. Images need to be re-uploaded or URLs updated to current domain.",
         "priority": "HIGH"
       }
     ]

@@ -36,6 +36,7 @@ import AdminCustomers from "@/pages/admin/AdminCustomers";
 import AdminOrders from "@/pages/admin/AdminOrders";
 import AdminStaff from "@/pages/admin/AdminStaff";
 import AdminNewsletter from "@/pages/admin/AdminNewsletter";
+import AdminCreditSettings from "@/pages/admin/AdminCreditSettings";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import "@/App.css";
 
@@ -103,6 +104,7 @@ function App() {
                   <Route path="/admin/orders" element={<ProtectedRoute requiredPermission="view_orders"><AdminOrders /></ProtectedRoute>} />
                   <Route path="/admin/staff" element={<ProtectedRoute requiredPermission="manage_admins"><AdminStaff /></ProtectedRoute>} />
                   <Route path="/admin/newsletter" element={<ProtectedRoute requiredPermission="view_settings"><AdminNewsletter /></ProtectedRoute>} />
+                  <Route path="/admin/credit-settings" element={<ProtectedRoute requiredPermission="view_settings"><AdminCreditSettings /></ProtectedRoute>} />
                 </Routes>
               </BrowserRouter>
               <Toaster position="top-right" richColors />
