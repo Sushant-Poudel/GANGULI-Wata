@@ -1,52 +1,84 @@
-# YoBroChat - Product Requirements Document
+# GSN - GameShop Nepal E-Commerce Platform
 
 ## Original Problem Statement
-Clone the GitHub repository https://github.com/Sushant-Poudel/yobrochat 1:1 without testing.
+Build a premium, dark-themed e-commerce website for digital goods (GameShop Nepal).
 
-## Credentials Provided
-- ImgBB API: a7b8503e59593528f8cd58121653a4b2
-- SMTP Gmail: gameshopnepal.buy@gmail.com
-- SMTP App Password: bwut bhem tnoq epdb
+## Latest Repository
+Cloned from: https://github.com/gamerbolte/ganguli (Feb 13, 2026)
 
 ## Tech Stack
-- **Backend**: Python FastAPI + MongoDB
-- **Frontend**: React 19 with Tailwind CSS, Radix UI components
-- **Services**: Email (SMTP), Image upload (ImgBB), Google Drive/Sheets integration
+- **Backend**: Python FastAPI + MongoDB (Motor async driver)
+- **Frontend**: React with Tailwind CSS, Shadcn UI components
+- **Database**: MongoDB
+- **Authentication**: JWT (Admin) + OTP-based (Customer)
 
 ## What's Been Implemented
-- [2026-02-13] Full repository clone completed
-- [2026-02-13] Analytics dashboard rework with dropdown time filters
-- [2026-02-13] Customer order/spending aggregation fix
-- [2026-02-13] Debug alerts removed from customer login
-- [2026-02-13] Social links fix (backend + frontend)
-- [2026-02-13] Complete credit system (admin settings, customer balance, checkout integration)
-- [2026-02-13] Email OTP fix (SMTP_EMAIL env variable)
-- [2026-02-13] "Login to use credits" button fix for guest users
-- [2026-02-13] **Checkout form pre-fill for logged-in customers** - Both CheckoutPage.jsx and ProductPage.jsx order dialog now display user info as read-only instead of input fields
-- [2026-02-13] **Store Credits in Product Page** - Added complete store credits section to ProductPage.jsx order dialog (was missing)
-- [2026-02-13] **Auto credit award on order completion** - Credits are automatically awarded to customers when admin marks order as "Completed"
-- [2026-02-13] **Customer phone in admin panel** - Phone numbers from orders are now shown in admin customer list
-- [2026-02-13] **Fixed "Failed to load account data" error** - Removed duplicate get_current_customer function causing token validation issues
-- [2026-02-13] **Deferred credit deduction** - Credits are only deducted when order is "Confirmed", not when placed. If total is Rs 0 (fully paid with credits), customer is redirected to WhatsApp directly without payment page
 
-## Core Features (from cloned repo)
-- E-commerce platform (GameShop Nepal)
-- Admin dashboard with analytics, products, orders, customers management
-- Customer authentication and account management
-- Cart, checkout, payment processing
-- Blog, FAQ, About pages
-- Newsletter management
-- Promo codes and flash sales
-- Store credits system with cashback
+### Feb 13, 2026 - Bug Fixes
+- ✅ Fixed duplicate `hash_password` function
+- ✅ Fixed duplicate `CustomerProfile` class (renamed to `CustomerProfileUpdate`)
+- ✅ Fixed bare `except` clause (changed to `except Exception`)
+- ✅ Fixed unused `formatted_phone` variable (now used in order creation)
+- ✅ Fixed sitemap missing categories (added category URLs)
+- ✅ All APIs verified working
 
-## Prioritized Backlog
-- P0: None (all requested features complete)
-- P1: Additional enhancements as requested
-- P2: Customize for specific needs
+### Previous Fixes
+- ✅ Numbers rounded to integers (no decimals like Rs 873.86)
+- ✅ Profit analytics fixed (case-insensitive status matching)
+- ✅ Customer order status display fixed
+- ✅ Multiple QR codes support for payment methods
+- ✅ Staff permissions system
+- ✅ Google Sheets integration moved to env vars
 
-## Next Tasks
-- None currently pending - awaiting user requests
+## Core Features
+- Homepage with products, reviews, Trustpilot integration
+- Product pages with variations, custom fields
+- Admin dashboard with analytics, orders, products management
+- Customer authentication (Email OTP)
+- Store credits system
+- Promo codes
+- Blog/FAQ pages
+- Payment screenshot upload (ImgBB)
+- WhatsApp order redirect
 
 ## Admin Credentials
-- Username: gsnadmin
-- Password: gsnadmin
+- **URL**: /admin/login
+- **Username**: gsnadmin
+- **Password**: gsnadmin
+
+## Environment Variables (backend/.env)
+- MONGO_URL, DB_NAME
+- JWT_SECRET (static)
+- ADMIN_USERNAME, ADMIN_PASSWORD
+- SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
+- IMGBB_API_KEY
+- GOOGLE_SERVICE_ACCOUNT_JSON
+- GOOGLE_SHEETS_SPREADSHEET_ID
+- TAKEAPP_API_KEY
+
+## API Endpoints Status
+- ✅ /api/products - Working
+- ✅ /api/categories - Working
+- ✅ /api/reviews - Working
+- ✅ /api/payment-methods - Working
+- ✅ /api/faqs - Working
+- ✅ /api/blog - Working
+- ✅ /api/orders - Working (auth required)
+- ✅ /api/analytics/overview - Working
+- ✅ /api/analytics/profit - Working
+- ✅ /api/sitemap.xml - Working
+
+## Data Summary
+- Products: 5
+- Categories: 2
+- Reviews: 23
+- Orders: 21
+- FAQs: 4
+- Payment Methods: 1
+
+## Known Minor Issues (Non-blocking)
+- 2 unused variables in server.py (credits_used, credits_awarded) - cosmetic only
+
+## Next Tasks
+- Deploy the application
+- Set cost prices on products for profit tracking
