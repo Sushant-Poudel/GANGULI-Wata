@@ -2053,7 +2053,7 @@ async def validate_promo_code(
     """Validate a promo code with advanced rules"""
     promo = await db.promo_codes.find_one({"code": code.upper(), "is_active": True})
     if not promo:
-        raise HTTPException(status_code=404, detail="Invalid promo code")
+        raise HTTPException(status_code=400, detail="Invalid or expired promo code")
     
     # Check expiry date
     if promo.get("expiry_date"):
