@@ -1707,13 +1707,26 @@ class PaymentScreenshotUpload(BaseModel):
 
 @api_router.post("/orders/{order_id}/payment-screenshot")
 async def upload_payment_screenshot(order_id: str, data: PaymentScreenshotUpload):
-    """Upload payment screenshot for an order - automatically marks as Confirmed"""
+    """Upload payment screenshot for an order - automatically marks as Confirmed and deducts credits"""
     order = await db.orders.find_one({"id": order_id})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
     # Generate invoice URL
     invoice_url = f"/invoice/{order_id}"
+    
+    # Deduct store credits if customer used them
+    credits_deducted = 0
+    customer_email = order.get("customer_email")
+    credits_used = order.get("credits_used", 0)
+    
+    if credits_used > 0 and customer_email and order.get("credits_pending"):
+        try:
+            await use_credits(customer_email, credits_used, order_id)
+            credits_deducted = credits_used
+            logger.info(f"Deducted {credits_used} credits from {customer_email} for order {order_id}")
+        except Exception as e:
+            logger.warning(f"Failed to deduct credits for order {order_id}: {e}")
     
     await db.orders.update_one(
         {"id": order_id},
@@ -1722,16 +1735,23 @@ async def upload_payment_screenshot(order_id: str, data: PaymentScreenshotUpload
             "payment_method": data.payment_method,
             "payment_uploaded_at": datetime.now(timezone.utc).isoformat(),
             "status": "Confirmed",
-            "invoice_url": invoice_url
+            "invoice_url": invoice_url,
+            "credits_pending": False,
+            "credits_deducted": credits_deducted > 0
         }}
     )
     
-    return {
+    response = {
         "message": "Payment screenshot uploaded", 
         "order_id": order_id,
         "status": "Confirmed",
         "invoice_url": invoice_url
     }
+    
+    if credits_deducted > 0:
+        response["credits_deducted"] = credits_deducted
+    
+    return response
 
 @api_router.post("/orders/{order_id}/complete")
 async def complete_order(order_id: str, current_user: dict = Depends(get_current_user)):
