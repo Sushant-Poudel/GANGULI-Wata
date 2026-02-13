@@ -2177,7 +2177,7 @@ async def get_auto_apply_promos(subtotal: float, customer_email: Optional[str] =
                 "discount_amount": validation["discount_amount"],
                 "description": validation["details"]["description"]
             })
-        except:
+        except Exception:
             continue
     
     return applicable_promos
