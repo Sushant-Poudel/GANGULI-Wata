@@ -1846,7 +1846,10 @@ async def complete_order(order_id: str, current_user: dict = Depends(get_current
         except Exception as e:
             print(f"Failed to send invoice email: {e}")
     
-    return {"message": "Order marked as completed", "order_id": order_id}
+    response = {"message": "Order marked as completed", "order_id": order_id}
+    if credits_awarded > 0:
+        response["credits_awarded"] = credits_awarded
+    return response
 
 
 @api_router.delete("/orders/{order_id}")
