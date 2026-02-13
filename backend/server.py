@@ -3231,7 +3231,7 @@ class CustomerLogin(BaseModel):
     phone: str
     otp: Optional[str] = None
 
-class CustomerProfile(BaseModel):
+class CustomerProfileUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     
