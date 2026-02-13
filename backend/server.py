@@ -340,10 +340,6 @@ def create_token(user_id: str) -> str:
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "gsnadmin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "gsnadmin")
 
-def hash_password(password: str) -> str:
-    """Simple password hashing"""
-    return hashlib.sha256(password.encode()).hexdigest()
-
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         token = credentials.credentials
