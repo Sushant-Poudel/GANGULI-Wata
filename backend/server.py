@@ -1755,34 +1755,34 @@ async def upload_payment_screenshot(order_id: str, data: PaymentScreenshotUpload
 
 @api_router.post("/orders/{order_id}/complete")
 async def complete_order(order_id: str, current_user: dict = Depends(get_current_user)):
-    """Mark order as completed and send invoice email"""
+    """Mark order as completed, award credits, and send invoice email"""
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # Update status to Completed
-    await db.orders.update_one(
-        {"id": order_id},
-        {"$set": {
-            "status": "Completed",
-            "completed_at": datetime.now(timezone.utc).isoformat()
-        }}
-    )
-    
-    # Award credits for this order
+    # Award credits for this order BEFORE updating status
     customer_email = order.get("customer_email")
     credits_awarded = 0
     if customer_email:
         try:
-            # Calculate credits based on order total (excluding credits used)
+            # Calculate credits based on order total
             order_total = order.get("total_amount", 0) or order.get("total", 0)
-            credits_used = order.get("credits_used", 0)
-            eligible_amount = order_total  # Award credits on full amount
             
-            credit_result = await award_credits_for_order(order_id, customer_email, eligible_amount)
+            credit_result = await award_credits_for_order(order_id, customer_email, order_total)
             credits_awarded = credit_result.get("credits_awarded", 0)
+            logger.info(f"Awarded {credits_awarded} credits to {customer_email} for order {order_id}")
         except Exception as e:
             logger.warning(f"Failed to award credits for order {order_id}: {e}")
+    
+    # Update status to Completed with credits info
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {
+            "status": "Completed",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "credits_awarded": credits_awarded
+        }}
+    )
     
     # Send invoice email to customer if email exists
     if customer_email:
@@ -1790,6 +1790,16 @@ async def complete_order(order_id: str, current_user: dict = Depends(get_current
             site_url = os.environ.get("SITE_URL", "https://gameshopnepal.com")
             invoice_url = f"{site_url}/invoice/{order_id}"
             trustpilot_url = "https://www.trustpilot.com/evaluate/gameshopnepal.com"
+            
+            # Credits message
+            credits_message = ""
+            if credits_awarded > 0:
+                credits_message = f"""
+                    <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); border-radius: 10px; padding: 15px; margin: 20px 0; text-align: center;">
+                        <p style="color: #fff; margin: 0; font-size: 16px;">🎉 You earned <strong>Rs {credits_awarded:.0f}</strong> in store credits!</p>
+                        <p style="color: rgba(255,255,255,0.8); margin: 5px 0 0 0; font-size: 13px;">Use it on your next purchase</p>
+                    </div>
+                """
             
             subject = f"Your Order #{order_id[:8]} is Complete - GameShop Nepal"
             html = f"""
@@ -1801,11 +1811,13 @@ async def complete_order(order_id: str, current_user: dict = Depends(get_current
                     <p style="color: #ccc; font-size: 16px;">Hi {order.get('customer_name', 'Customer')},</p>
                     <p style="color: #ccc; font-size: 16px;">Your order has been completed successfully!</p>
                     
+                    {credits_message}
+                    
                     <div style="background: #2a2a2a; border-radius: 10px; padding: 20px; margin: 20px 0;">
                         <h2 style="color: #F5A623; margin-top: 0;">Order Summary</h2>
                         <p style="color: #fff;"><strong>Order ID:</strong> #{order_id[:8]}</p>
                         <p style="color: #fff;"><strong>Items:</strong> {order.get('items_text', 'N/A')}</p>
-                        <p style="color: #F5A623; font-size: 20px;"><strong>Total:</strong> Rs {order.get('total', 0):,.2f}</p>
+                        <p style="color: #F5A623; font-size: 20px;"><strong>Total:</strong> Rs {order.get('total', order.get('total_amount', 0)):,.0f}</p>
                     </div>
                     
                     <div style="text-align: center; margin: 30px 0;">
@@ -1827,7 +1839,7 @@ async def complete_order(order_id: str, current_user: dict = Depends(get_current
                 </div>
             </div>
             """
-            text = f"Order #{order_id[:8]} Complete!\n\nYour order has been completed.\nView Invoice: {invoice_url}\nLeave a Review: {trustpilot_url}"
+            text = f"Order #{order_id[:8]} Complete!\n\nYour order has been completed.\n{'You earned Rs ' + str(int(credits_awarded)) + ' in store credits!' if credits_awarded > 0 else ''}\nView Invoice: {invoice_url}\nLeave a Review: {trustpilot_url}"
             
             from email_service import send_email
             send_email(customer_email, subject, html, text)
