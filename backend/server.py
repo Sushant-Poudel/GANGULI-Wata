@@ -868,8 +868,11 @@ async def get_customer_stats(current_customer: dict = Depends(get_current_custom
     # Count orders
     total_orders = await db.orders.count_documents({"customer_email": email})
     
-    # Calculate total spent
-    orders = await db.orders.find({"customer_email": email}).to_list(1000)
+    # Calculate total spent with projection (only fetch total_amount)
+    orders = await db.orders.find(
+        {"customer_email": email}, 
+        {"total_amount": 1, "_id": 0}
+    ).to_list(1000)
     total_spent = sum(order.get("total_amount", 0) for order in orders)
     
     # Count wishlist items
