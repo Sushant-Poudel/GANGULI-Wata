@@ -2510,8 +2510,6 @@ async def delete_bundle(bundle_id: str, current_user: dict = Depends(get_current
 
 # ==================== RECENT PURCHASES (Live Ticker) ====================
 
-import random
-
 # Nepal cities for random location
 NEPAL_CITIES = ["Kathmandu", "Pokhara", "Lalitpur", "Biratnagar", "Bharatpur", "Birgunj", "Dharan", "Butwal", "Hetauda", "Bhaktapur", "Janakpur", "Nepalgunj", "Itahari", "Dhangadhi", "Tulsipur"]
 
