@@ -815,13 +815,28 @@ async def get_customer_orders(current_customer: dict = Depends(get_current_custo
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     
-    # Fetch status history for each order
-    for order in orders:
-        history = await db.order_status_history.find(
-            {"order_id": order.get("id")},
+    # Batch fetch all status histories to avoid N+1 query
+    order_ids = [order.get("id") for order in orders if order.get("id")]
+    if order_ids:
+        all_histories = await db.order_status_history.find(
+            {"order_id": {"$in": order_ids}},
             {"_id": 0}
-        ).sort("created_at", 1).to_list(50)
-        order["status_history"] = history
+        ).sort("created_at", 1).to_list(5000)
+        
+        # Group histories by order_id
+        history_map = {}
+        for h in all_histories:
+            oid = h.get("order_id")
+            if oid not in history_map:
+                history_map[oid] = []
+            history_map[oid].append(h)
+        
+        # Assign histories to orders
+        for order in orders:
+            order["status_history"] = history_map.get(order.get("id"), [])
+    else:
+        for order in orders:
+            order["status_history"] = []
     
     return orders
 
