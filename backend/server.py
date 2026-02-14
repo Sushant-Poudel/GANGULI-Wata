@@ -1718,9 +1718,12 @@ async def upload_payment_screenshot(order_id: str, data: PaymentScreenshotUpload
     # Deduct store credits if customer used them
     credits_deducted = 0
     customer_email = order.get("customer_email")
-    credits_used = order.get("credits_used", 0)
+    credits_used = float(order.get("credits_used", 0) or 0)
+    credits_pending = order.get("credits_pending", False)
     
-    if credits_used > 0 and customer_email and order.get("credits_pending"):
+    logger.info(f"Order {order_id}: email={customer_email}, credits_used={credits_used}, credits_pending={credits_pending}")
+    
+    if credits_used > 0 and customer_email:
         try:
             await use_credits(customer_email, credits_used, order_id)
             credits_deducted = credits_used
@@ -3441,6 +3444,481 @@ async def get_all_customers(current_user: dict = Depends(get_current_user)):
             customer["phone"] = stats.get("phone")
     
     return customers
+
+# ==================== DAILY REWARDS ====================
+
+class DailyRewardSettings(BaseModel):
+    is_enabled: bool = True
+    reward_amount: float = 10.0  # Credits to award daily
+    streak_bonus_enabled: bool = True
+    streak_milestones: dict = {
+        "7": 50,   # 7 day streak bonus
+        "30": 200  # 30 day streak bonus
+    }
+
+def get_nepal_date():
+    """Get current date in Nepal timezone (UTC+5:45)"""
+    nepal_offset = timedelta(hours=5, minutes=45)
+    nepal_time = datetime.now(timezone.utc) + nepal_offset
+    return nepal_time.date().isoformat()
+
+def get_nepal_datetime():
+    """Get current datetime in Nepal timezone (UTC+5:45)"""
+    nepal_offset = timedelta(hours=5, minutes=45)
+    return datetime.now(timezone.utc) + nepal_offset
+
+async def get_active_multiplier_value(event_type: str = None) -> float:
+    """Get the current active multiplier value"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    query = {
+        "is_active": True,
+        "start_time": {"$lte": now},
+        "end_time": {"$gte": now}
+    }
+    
+    events = await db.multiplier_events.find(query).to_list(10)
+    
+    max_multiplier = 1.0
+    for event in events:
+        applies_to = event.get("applies_to", ["daily_reward", "cashback", "referral"])
+        if event_type is None or event_type in applies_to:
+            if event.get("multiplier", 1) > max_multiplier:
+                max_multiplier = event.get("multiplier", 1)
+    
+    return max_multiplier
+
+@api_router.get("/daily-reward/settings")
+async def get_daily_reward_settings():
+    """Get daily reward settings (public)"""
+    settings = await db.daily_reward_settings.find_one({"id": "main"}, {"_id": 0})
+    if not settings:
+        settings = {
+            "id": "main",
+            "is_enabled": True,
+            "reward_amount": 10.0,
+            "streak_bonus_enabled": True,
+            "streak_milestones": {"7": 50, "30": 200}
+        }
+    return settings
+
+@api_router.put("/daily-reward/settings")
+async def update_daily_reward_settings(settings: DailyRewardSettings, current_user: dict = Depends(get_current_user)):
+    """Update daily reward settings (admin only)"""
+    settings_dict = settings.model_dump()
+    settings_dict["id"] = "main"
+    await db.daily_reward_settings.update_one({"id": "main"}, {"$set": settings_dict}, upsert=True)
+    return settings_dict
+
+@api_router.get("/daily-reward/status")
+async def get_daily_reward_status(email: str):
+    """Check if customer can claim daily reward and their streak"""
+    settings = await db.daily_reward_settings.find_one({"id": "main"})
+    if not settings:
+        settings = {
+            "is_enabled": True,
+            "reward_amount": 10.0,
+            "streak_bonus_enabled": True,
+            "streak_milestones": {"7": 50, "30": 200}
+        }
+    
+    if not settings.get("is_enabled", True):
+        return {"can_claim": False, "reason": "Daily rewards are disabled", "streak": 0}
+    
+    customer = await db.customers.find_one({"email": email})
+    if not customer:
+        return {"can_claim": False, "reason": "Customer not found", "streak": 0}
+    
+    today = get_nepal_date()
+    last_claim_date = customer.get("last_daily_reward_date")
+    current_streak = customer.get("daily_reward_streak", 0)
+    
+    # Check if already claimed today
+    if last_claim_date == today:
+        return {
+            "can_claim": False, 
+            "reason": "Already claimed today", 
+            "streak": current_streak,
+            "last_claim": last_claim_date,
+            "reward_amount": settings.get("reward_amount", 10),
+            "next_reset": get_nepal_date()  # Resets at 12 AM Nepal time
+        }
+    
+    # Check if streak should be reset (missed a day)
+    if last_claim_date:
+        yesterday = (get_nepal_datetime() - timedelta(days=1)).date().isoformat()
+        if last_claim_date != yesterday:
+            current_streak = 0  # Reset streak if missed a day
+    
+    return {
+        "can_claim": True,
+        "streak": current_streak,
+        "next_streak": current_streak + 1,
+        "reward_amount": settings.get("reward_amount", 10),
+        "streak_bonus_enabled": settings.get("streak_bonus_enabled", True),
+        "streak_milestones": settings.get("streak_milestones", {"7": 50, "30": 200}),
+        "last_claim": last_claim_date
+    }
+
+@api_router.post("/daily-reward/claim")
+async def claim_daily_reward(email: str):
+    """Claim daily login reward"""
+    settings = await db.daily_reward_settings.find_one({"id": "main"})
+    if not settings or not settings.get("is_enabled", True):
+        raise HTTPException(status_code=400, detail="Daily rewards are disabled")
+    
+    customer = await db.customers.find_one({"email": email})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    today = get_nepal_date()
+    last_claim_date = customer.get("last_daily_reward_date")
+    
+    # Check if already claimed today
+    if last_claim_date == today:
+        raise HTTPException(status_code=400, detail="Already claimed today")
+    
+    # Calculate streak
+    current_streak = customer.get("daily_reward_streak", 0)
+    if last_claim_date:
+        yesterday = (get_nepal_datetime() - timedelta(days=1)).date().isoformat()
+        if last_claim_date == yesterday:
+            current_streak += 1  # Continue streak
+        else:
+            current_streak = 1  # Reset streak
+    else:
+        current_streak = 1  # First claim
+    
+    # Calculate reward
+    base_reward = settings.get("reward_amount", 10)
+    streak_bonus = 0
+    streak_milestone_reached = None
+    
+    # Check for streak milestones
+    if settings.get("streak_bonus_enabled", True):
+        milestones = settings.get("streak_milestones", {"7": 50, "30": 200})
+        for days, bonus in milestones.items():
+            if current_streak == int(days):
+                streak_bonus = bonus
+                streak_milestone_reached = int(days)
+                break
+    
+    # Apply multiplier
+    multiplier = await get_active_multiplier_value("daily_reward")
+    base_reward_multiplied = base_reward * multiplier
+    streak_bonus_multiplied = streak_bonus * multiplier
+    total_reward = base_reward_multiplied + streak_bonus_multiplied
+    
+    # Update customer
+    current_balance = customer.get("credit_balance", 0)
+    new_balance = current_balance + total_reward
+    
+    await db.customers.update_one(
+        {"email": email},
+        {"$set": {
+            "credit_balance": new_balance,
+            "last_daily_reward_date": today,
+            "daily_reward_streak": current_streak
+        }}
+    )
+    
+    # Log the credit transaction
+    multiplier_text = f" ({multiplier}x multiplier!)" if multiplier > 1 else ""
+    credit_log = {
+        "id": str(uuid.uuid4()),
+        "customer_id": customer.get("id"),
+        "customer_email": email,
+        "amount": total_reward,
+        "reason": f"Daily login reward (Day {current_streak})" + (f" + {streak_milestone_reached}-day streak bonus!" if streak_bonus > 0 else "") + multiplier_text,
+        "balance_before": current_balance,
+        "balance_after": new_balance,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "type": "daily_reward",
+        "multiplier": multiplier
+    }
+    await db.credit_logs.insert_one(credit_log)
+    
+    return {
+        "success": True,
+        "base_reward": base_reward_multiplied,
+        "streak_bonus": streak_bonus_multiplied,
+        "total_reward": total_reward,
+        "new_balance": new_balance,
+        "streak": current_streak,
+        "streak_milestone_reached": streak_milestone_reached,
+        "multiplier": multiplier,
+        "message": f"You earned Rs {total_reward} credits!" + (f" 🎉 {streak_milestone_reached}-day streak bonus!" if streak_bonus > 0 else "") + (f" 🔥 {multiplier}x multiplier active!" if multiplier > 1 else "")
+    }
+
+# ==================== REFERRAL PROGRAM ====================
+
+def generate_referral_code(length=8):
+    """Generate a unique referral code"""
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(chars, k=length))
+
+class ReferralSettings(BaseModel):
+    is_enabled: bool = True
+    referrer_reward: float = 50.0  # Credits for person who refers
+    referee_reward: float = 25.0   # Credits for new user who uses code
+    min_purchase_required: bool = False  # Require purchase to earn referral bonus
+    min_purchase_amount: float = 0
+
+@api_router.get("/referral/settings")
+async def get_referral_settings():
+    """Get referral program settings"""
+    settings = await db.referral_settings.find_one({"id": "main"}, {"_id": 0})
+    if not settings:
+        settings = {
+            "id": "main",
+            "is_enabled": True,
+            "referrer_reward": 50.0,
+            "referee_reward": 25.0,
+            "min_purchase_required": False,
+            "min_purchase_amount": 0
+        }
+    return settings
+
+@api_router.put("/referral/settings")
+async def update_referral_settings(settings: ReferralSettings, current_user: dict = Depends(get_current_user)):
+    """Update referral settings (admin only)"""
+    settings_dict = settings.model_dump()
+    settings_dict["id"] = "main"
+    await db.referral_settings.update_one({"id": "main"}, {"$set": settings_dict}, upsert=True)
+    return settings_dict
+
+@api_router.get("/referral/code/{email}")
+async def get_referral_code(email: str):
+    """Get or generate referral code for a customer"""
+    customer = await db.customers.find_one({"email": email.lower()})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Check if customer already has a referral code
+    referral_code = customer.get("referral_code")
+    if not referral_code:
+        # Generate unique code
+        while True:
+            referral_code = generate_referral_code()
+            existing = await db.customers.find_one({"referral_code": referral_code})
+            if not existing:
+                break
+        
+        await db.customers.update_one(
+            {"email": email.lower()},
+            {"$set": {"referral_code": referral_code}}
+        )
+    
+    # Get referral stats
+    referral_count = await db.referrals.count_documents({"referrer_email": email.lower()})
+    total_earned = 0
+    referrals = await db.referrals.find({"referrer_email": email.lower()}).to_list(100)
+    for ref in referrals:
+        total_earned += ref.get("referrer_reward", 0)
+    
+    # Check if user has already used a referral code
+    has_used_referral = customer.get("referred_by") is not None
+    
+    return {
+        "referral_code": referral_code,
+        "referral_count": referral_count,
+        "total_earned": total_earned,
+        "has_used_referral": has_used_referral
+    }
+
+@api_router.post("/referral/apply")
+async def apply_referral_code(referee_email: str, referral_code: str):
+    """Apply a referral code for a new user"""
+    settings = await db.referral_settings.find_one({"id": "main"})
+    if not settings or not settings.get("is_enabled", True):
+        raise HTTPException(status_code=400, detail="Referral program is currently disabled")
+    
+    # Find referrer by code
+    referrer = await db.customers.find_one({"referral_code": referral_code.upper()})
+    if not referrer:
+        raise HTTPException(status_code=400, detail="Invalid referral code")
+    
+    # Check if referee exists
+    referee = await db.customers.find_one({"email": referee_email.lower()})
+    if not referee:
+        raise HTTPException(status_code=404, detail="Your account not found")
+    
+    # Check if same person
+    if referrer["email"].lower() == referee_email.lower():
+        raise HTTPException(status_code=400, detail="You cannot use your own referral code")
+    
+    # Check if already used a referral code
+    if referee.get("referred_by"):
+        raise HTTPException(status_code=400, detail="You have already used a referral code")
+    
+    # Check if referee already has purchases (not a new user)
+    order_count = await db.orders.count_documents({"customer_email": referee_email.lower()})
+    if order_count > 0:
+        raise HTTPException(status_code=400, detail="Referral codes are only for new users")
+    
+    referee_reward = settings.get("referee_reward", 25)
+    referrer_reward = settings.get("referrer_reward", 50)
+    
+    # Get active multiplier
+    multiplier = await get_active_multiplier_value("referral")
+    referee_reward = referee_reward * multiplier
+    referrer_reward = referrer_reward * multiplier
+    
+    # Award credits to referee immediately
+    referee_balance = referee.get("credit_balance", 0)
+    await db.customers.update_one(
+        {"email": referee_email.lower()},
+        {"$set": {
+            "credit_balance": referee_balance + referee_reward,
+            "referred_by": referrer["email"],
+            "referred_by_code": referral_code.upper()
+        }}
+    )
+    
+    # Log credit for referee
+    await db.credit_logs.insert_one({
+        "id": str(uuid.uuid4()),
+        "customer_email": referee_email.lower(),
+        "amount": referee_reward,
+        "reason": f"Welcome bonus - used referral code {referral_code.upper()}" + (f" ({multiplier}x multiplier)" if multiplier > 1 else ""),
+        "type": "referral_bonus",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Award credits to referrer (can be immediate or after first purchase based on settings)
+    if not settings.get("min_purchase_required", False):
+        referrer_balance = referrer.get("credit_balance", 0)
+        await db.customers.update_one(
+            {"email": referrer["email"]},
+            {"$set": {"credit_balance": referrer_balance + referrer_reward}}
+        )
+        
+        await db.credit_logs.insert_one({
+            "id": str(uuid.uuid4()),
+            "customer_email": referrer["email"],
+            "amount": referrer_reward,
+            "reason": f"Referral bonus - {referee_email} joined" + (f" ({multiplier}x multiplier)" if multiplier > 1 else ""),
+            "type": "referral_reward",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        referrer_credited = True
+    else:
+        referrer_credited = False
+    
+    # Record the referral
+    await db.referrals.insert_one({
+        "id": str(uuid.uuid4()),
+        "referrer_email": referrer["email"],
+        "referee_email": referee_email.lower(),
+        "referral_code": referral_code.upper(),
+        "referee_reward": referee_reward,
+        "referrer_reward": referrer_reward if referrer_credited else 0,
+        "referrer_pending_reward": 0 if referrer_credited else referrer_reward,
+        "referrer_credited": referrer_credited,
+        "multiplier_applied": multiplier,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {
+        "success": True,
+        "message": f"Referral code applied! You received Rs {referee_reward} credits!",
+        "credits_received": referee_reward,
+        "multiplier": multiplier
+    }
+
+@api_router.get("/referral/history/{email}")
+async def get_referral_history(email: str):
+    """Get referral history for a customer"""
+    referrals = await db.referrals.find({"referrer_email": email.lower()}).sort("created_at", -1).to_list(100)
+    for ref in referrals:
+        ref["id"] = str(ref.get("_id", ref.get("id")))
+        if "_id" in ref:
+            del ref["_id"]
+    return referrals
+
+@api_router.get("/referrals/all")
+async def get_all_referrals(current_user: dict = Depends(get_current_user)):
+    """Get all referrals for admin panel"""
+    referrals = await db.referrals.find().sort("created_at", -1).to_list(100)
+    for ref in referrals:
+        ref["id"] = str(ref.get("_id", ref.get("id")))
+        if "_id" in ref:
+            del ref["_id"]
+    return referrals
+
+# ==================== POINTS MULTIPLIER EVENTS ====================
+
+class MultiplierEvent(BaseModel):
+    name: str
+    multiplier: float = 2.0
+    start_time: str  # ISO format datetime
+    end_time: str    # ISO format datetime
+    applies_to: List[str] = ["daily_reward", "cashback", "referral"]  # What it applies to
+    is_active: bool = True
+
+@api_router.get("/multiplier/active")
+async def get_active_multiplier_event():
+    """Get current active multiplier event (public)"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    event = await db.multiplier_events.find_one({
+        "is_active": True,
+        "start_time": {"$lte": now},
+        "end_time": {"$gte": now}
+    }, {"_id": 0})
+    
+    if event:
+        return {
+            "is_active": True,
+            "name": event.get("name"),
+            "multiplier": event.get("multiplier", 2),
+            "end_time": event.get("end_time"),
+            "applies_to": event.get("applies_to", ["daily_reward", "cashback", "referral"])
+        }
+    
+    return {"is_active": False, "multiplier": 1}
+
+@api_router.get("/multiplier/events")
+async def get_multiplier_events(current_user: dict = Depends(get_current_user)):
+    """Get all multiplier events (admin only)"""
+    events = await db.multiplier_events.find().sort("start_time", -1).to_list(100)
+    for event in events:
+        event["id"] = str(event.get("_id", event.get("id")))
+        if "_id" in event:
+            del event["_id"]
+    return events
+
+@api_router.post("/multiplier/events")
+async def create_multiplier_event(event: MultiplierEvent, current_user: dict = Depends(get_current_user)):
+    """Create a new multiplier event (admin only)"""
+    event_dict = event.model_dump()
+    event_dict["id"] = str(uuid.uuid4())
+    event_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    await db.multiplier_events.insert_one(event_dict)
+    # Remove MongoDB's _id from response
+    if "_id" in event_dict:
+        del event_dict["_id"]
+    return event_dict
+
+@api_router.put("/multiplier/events/{event_id}")
+async def update_multiplier_event(event_id: str, event: MultiplierEvent, current_user: dict = Depends(get_current_user)):
+    """Update a multiplier event (admin only)"""
+    result = await db.multiplier_events.update_one(
+        {"id": event_id},
+        {"$set": event.model_dump()}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"message": "Event updated"}
+
+@api_router.delete("/multiplier/events/{event_id}")
+async def delete_multiplier_event(event_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a multiplier event (admin only)"""
+    result = await db.multiplier_events.delete_one({"id": event_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"message": "Event deleted"}
 
 # ==================== ROOT ====================
 

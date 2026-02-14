@@ -15,6 +15,7 @@ import FAQPage from "@/pages/FAQPage";
 import TermsPage from "@/pages/TermsPage";
 import BlogPage from "@/pages/BlogPage";
 import BlogPostPage from "@/pages/BlogPostPage";
+import DailyRewardPage from "@/pages/DailyRewardPage";
 import CustomerAccountPage from "@/pages/CustomerAccountPage";
 import OrderTrackingPage from "@/pages/OrderTrackingPage";
 import AdminLogin from "@/pages/admin/AdminLogin";
@@ -37,6 +38,9 @@ import AdminOrders from "@/pages/admin/AdminOrders";
 import AdminStaff from "@/pages/admin/AdminStaff";
 import AdminNewsletter from "@/pages/admin/AdminNewsletter";
 import AdminCreditSettings from "@/pages/admin/AdminCreditSettings";
+import AdminDailyReward from "@/pages/admin/AdminDailyReward";
+import AdminReferral from "@/pages/admin/AdminReferral";
+import AdminMultiplier from "@/pages/admin/AdminMultiplier";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import "@/App.css";
 
@@ -82,6 +86,7 @@ function App() {
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/blog" element={<BlogPage />} />
                   <Route path="/blog/:slug" element={<BlogPostPage />} />
+                  <Route path="/daily-reward" element={<DailyRewardPage />} />
                   <Route path="/account" element={<CustomerAccountPage />} />
                   <Route path="/track-order" element={<OrderTrackingPage />} />
 
@@ -105,6 +110,9 @@ function App() {
                   <Route path="/admin/staff" element={<ProtectedRoute requiredPermission="manage_admins"><AdminStaff /></ProtectedRoute>} />
                   <Route path="/admin/newsletter" element={<ProtectedRoute requiredPermission="view_settings"><AdminNewsletter /></ProtectedRoute>} />
                   <Route path="/admin/credit-settings" element={<ProtectedRoute requiredPermission="view_settings"><AdminCreditSettings /></ProtectedRoute>} />
+                  <Route path="/admin/daily-reward" element={<ProtectedRoute requiredPermission="view_settings"><AdminDailyReward /></ProtectedRoute>} />
+                  <Route path="/admin/referral" element={<ProtectedRoute requiredPermission="view_settings"><AdminReferral /></ProtectedRoute>} />
+                  <Route path="/admin/multiplier" element={<ProtectedRoute requiredPermission="view_settings"><AdminMultiplier /></ProtectedRoute>} />
                 </Routes>
               </BrowserRouter>
               <Toaster position="top-right" richColors />
