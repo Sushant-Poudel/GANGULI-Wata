@@ -555,7 +555,7 @@ async def delete_admin(admin_id: str, current_user: dict = Depends(get_current_u
     if admin_id == "admin_main":
         raise HTTPException(status_code=400, detail="Cannot delete main admin")
     
-    result = await db.admins.delete_one({"_id": admin_id})
+    result = await db.admins.delete_one({"id": admin_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Admin not found")
     
