@@ -426,15 +426,42 @@ async def login(credentials: UserLogin):
                 }
             }
     
-    # Fallback to old admin system
+    # Fallback to old admin system - create/update main admin in DB
     if credentials.email == ADMIN_USERNAME and credentials.password == ADMIN_PASSWORD:
-        token = create_token("admin-fixed")
+        # Ensure main admin exists in database
+        main_admin_id = "admin_main"
+        existing_main = await db.admins.find_one({"id": main_admin_id})
+        
+        if not existing_main:
+            # Create main admin in database
+            main_admin_doc = {
+                "id": main_admin_id,
+                "username": ADMIN_USERNAME,
+                "email": f"{ADMIN_USERNAME}@gameshopnepal.com",
+                "name": "Main Admin",
+                "password": hash_password(ADMIN_PASSWORD),
+                "role": "main_admin",
+                "is_main_admin": True,
+                "is_active": True,
+                "permissions": ["all"],
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.admins.insert_one(main_admin_doc)
+            logger.info("Main admin created in database")
+        else:
+            # Update last login
+            await db.admins.update_one(
+                {"id": main_admin_id},
+                {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}}
+            )
+        
+        token = create_token(main_admin_id)
         return {
             "token": token,
             "user": {
-                "id": "admin-fixed",
+                "id": main_admin_id,
                 "email": ADMIN_USERNAME,
-                "name": "Admin",
+                "name": "Main Admin",
                 "is_admin": True,
                 "is_main_admin": True,
                 "permissions": ["all"]
