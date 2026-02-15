@@ -483,8 +483,18 @@ async def get_all_admins(current_user: dict = Depends(get_current_user)):
     if not current_user.get("is_main_admin"):
         raise HTTPException(status_code=403, detail="Only main admin can view all admins")
     
-    admins = await db.admins.find({}, {"password": 0, "_id": 0}).sort("created_at", -1).to_list(100)
-    return admins
+    admins = await db.admins.find({}, {"password": 0}).sort("created_at", -1).to_list(100)
+    
+    # Normalize response - ensure both id and _id work for frontend compatibility
+    result = []
+    for admin in admins:
+        admin_data = {k: v for k, v in admin.items() if k != "_id"}
+        # Ensure id field exists
+        if "id" not in admin_data and "_id" in admin:
+            admin_data["id"] = str(admin["_id"])
+        result.append(admin_data)
+    
+    return result
 
 @api_router.post("/admins")
 async def create_admin(admin_data: dict, current_user: dict = Depends(get_current_user)):
