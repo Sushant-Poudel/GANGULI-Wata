@@ -483,10 +483,7 @@ async def get_all_admins(current_user: dict = Depends(get_current_user)):
     if not current_user.get("is_main_admin"):
         raise HTTPException(status_code=403, detail="Only main admin can view all admins")
     
-    admins = await db.admins.find({}, {"password": 0}).sort("created_at", -1).to_list(100)
-    for admin in admins:
-        admin.pop("_id", None)
-        admin["id"] = admin.get("_id", admin.get("id"))
+    admins = await db.admins.find({}, {"password": 0, "_id": 0}).sort("created_at", -1).to_list(100)
     return admins
 
 @api_router.post("/admins")
@@ -500,8 +497,9 @@ async def create_admin(admin_data: dict, current_user: dict = Depends(get_curren
     if existing:
         raise HTTPException(status_code=400, detail="Username already exists")
     
+    admin_id = f"admin_{admin_data['username']}"
     new_admin = {
-        "_id": f"admin_{admin_data['username']}",
+        "id": admin_id,
         "username": admin_data["username"],
         "password": hash_password(admin_data["password"]),
         "email": admin_data.get("email", ""),
