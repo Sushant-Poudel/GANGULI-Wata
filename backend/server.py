@@ -352,26 +352,26 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             logger.error(f"No user_id in token payload: {payload}")
             raise HTTPException(status_code=401, detail="Invalid token: no user_id")
         
-        # Check if it's the new admin system
-        admin = await db.admins.find_one({"_id": user_id})
+        # Check if it's the new admin system (search by id field, not _id)
+        admin = await db.admins.find_one({"id": user_id})
         if admin and admin.get("is_active"):
             return {
-                "id": admin["_id"],
+                "id": admin.get("id"),
                 "username": admin.get("username"),
                 "email": admin.get("email"),
                 "name": admin.get("name"),
                 "role": admin.get("role"),
                 "permissions": admin.get("permissions", []),
                 "is_admin": True,
-                "is_main_admin": admin.get("role") == "main_admin"
+                "is_main_admin": admin.get("role") == "main_admin" or admin.get("is_main_admin")
             }
         
-        # Fallback to old admin system
-        if user_id == "admin-fixed":
+        # Fallback to old admin system (for backward compatibility)
+        if user_id == "admin-fixed" or user_id == "admin_main":
             return {
-                "id": "admin-fixed",
+                "id": user_id,
                 "email": ADMIN_USERNAME,
-                "name": "Admin",
+                "name": "Main Admin",
                 "is_admin": True,
                 "is_main_admin": True,
                 "permissions": ["all"]
