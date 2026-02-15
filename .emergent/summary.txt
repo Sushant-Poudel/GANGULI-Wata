@@ -1,5 +1,5 @@
 <analysis>**original_problem_statement:**
-The user wants to build a premium, modern, dark-themed e-commerce website for digital goods, similar to ottsathi.com and gameshopnepal.com. The project has undergone multiple rapid iterations where the entire codebase was replaced with new user-provided GitHub repositories, requiring data preservation and re-implementation of features.
+The user wants to build a premium, modern, dark-themed e-commerce website for digital goods, inspired by ottsathi.com and gameshopnepal.com. The project has undergone multiple rapid iterations where the entire codebase was replaced with new user-provided GitHub repositories, requiring data preservation and re-implementation of features each time.
 
 PRODUCT REQUIREMENTS:
 - **Homepage:** Display customer reviews and a grid of products.
@@ -11,223 +11,255 @@ PRODUCT REQUIREMENTS:
     - Generate a unique, public invoice URL for each completed order.
     - Automatically email the invoice to the customer upon order completion.
 - **Admin Panel:** A comprehensive, mobile-responsive admin panel to manage products, categories, reviews, blogs, FAQs, and orders.
-- **Authentication:** Secure admin login (credentials moved to environment variables) and an OTP-based customer login system using Gmail for sending codes.
+- **Authentication:** Secure admin login (credentials in environment variables) and an OTP-based customer login system.
 - **Integrations:** Trustpilot for reviews and Take.app for order syncing.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The entire codebase was just replaced with a new repository from . All previous user data (products, categories, etc.) was backed up and restored into the MongoDB database. However, after the new code was deployed, the frontend started showing a blank black screen due to a critical JavaScript error. The agent has identified the error and applied a fix but has not yet verified if the application is rendering correctly.
+The application is running on a new codebase from the  GitHub repository, which was the latest of several full codebase swaps. All user data (products, orders, etc.) has been backed up and restored. The agent has performed multiple cycles of debugging, fixing issues reported by the user and found through linting/testing. This includes fixing Python errors, resolving deployment blockers (hardcoded secrets, .gitignore issues), fixing business logic for store credits and profit calculations, and attempting to fix a persistent bug in the admin staff management section.
 
 **Last working item**:
--   **Last item agent was working:** Fixing a critical frontend bug in  that caused the application to render a blank black screen. The bug was a typo ( was used instead of  in a hook). The agent applied a code change to correct this.
--   **Status:** IN PROGRESS
--   **Agent Testing Done:** N
--   **Which testing method agent to use?** screenshot tool to take a single screenshot of the homepage () to confirm the black screen issue is resolved.
--   **User Testing Done:** N
+-   **Last item agent was working:** Debugging a persistent Admin not found error that occurs when the main admin () tries to update staff member details. The agent has made several attempts to fix this by standardizing the use of a custom uid=0(root) gid=0(root) groups=0(root) field instead of MongoDB's default  across the backend API, as this inconsistency was identified as the likely root cause.
+-   **Status:** USER VERIFICATION PENDING
+-   **Agent Testing Done:** Y (Local tests for creating, updating, and deleting staff members passed successfully after the latest fix.)
+-   **Which testing method agent to use?** Manual testing. The agent needs to ask the user to reproduce the error. If it persists, the agent must check the backend logs for the newly added debug statements to trace the exact IDs being used during the failed operation. A direct inspection of the  collection in the database will also be necessary.
+-   **User Testing Done:** N (The user's last report on this was Still says admin not found, indicating previous fixes were not successful. Verification on the latest fix is pending.)
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Critical - Application Not Rendering (Priority: P0)**
--   **Issue 2: Verify and Fix Deployment Readiness (Priority: P1)**
+-   **Issue 1: Critical Admin not found error in staff management (Priority: P0)**
+-   **Issue 2: Re-implement lost features due to codebase swaps (Priority: P1)**
 
 **Issues Detail:**
--   **Issue 1: Critical - Application Not Rendering**
-    -   **Attempted fixes:** The agent identified a bug in  where  was incorrectly used instead of . A fix has been applied via .
+-   **Issue 1: Critical Admin not found error in staff management**
+    -   **Attempted fixes:**
+        1.  Ensured the main admin () is created as a document in the  collection upon first login.
+        2.  Modified all staff management endpoints (, , , ) in  to use a custom uid=0(root) gid=0(root) groups=0(root) field for lookups, instead of MongoDB's .
+        3.  Added backward compatibility to the  endpoint to return both uid=0(root) gid=0(root) groups=0(root) and  to prevent frontend errors.
+        4.  Added debug logs to the  and  functions to trace the IDs being used during the operation.
     -   **Next debug checklist:**
-        1.  Take a screenshot of the homepage ().
-        2.  If it still fails, check the browser console logs (==> /var/log/supervisor/frontend.err.log <==
-(node:333) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:333) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:77) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:77) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:400) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:400) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:78) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:78) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:85) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:85) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:389) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:389) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:85) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:85) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:83) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:83) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:85) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:85) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:78) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:78) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:80) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:80) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:84) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:84) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:426) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:426) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:83) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:83) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:80) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:80) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:82) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:404) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:404) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(node:771) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:771) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+        1.  Restart the backend service to ensure all the latest code changes and logging are active.
+        2.  Ask the user to try updating a staff member again.
+        3.  Immediately after, check the backend logs for the  messages: ==> /var/log/supervisor/backend.err.log <==
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/server.py", line 106, in security_headers_middleware
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 165, in call_next
+    raise app_exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 151, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 189, in __call__
+    with collapse_excgroups():
+  File "/usr/local/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 93, in collapse_excgroups
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/backend/server.py", line 100, in rate_limit_middleware
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 165, in call_next
+    raise app_exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 151, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 65, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 756, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 776, in app
+    await route.handle(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 297, in handle
+    await self.app(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 77, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "/root/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/.venv/lib/python3.11/site-packages/starlette/routing.py", line 72, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 296, in app
+    content = await serialize_response(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 180, in serialize_response
+    return jsonable_encoder(response_content)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/encoders.py", line 287, in jsonable_encoder
+    encoded_value = jsonable_encoder(
+                    ^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/encoders.py", line 287, in jsonable_encoder
+    encoded_value = jsonable_encoder(
+                    ^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/fastapi/encoders.py", line 330, in jsonable_encoder
+    raise ValueError(errors) from e
+ValueError: [TypeError("'ObjectId' object is not iterable"), TypeError('vars() argument must have __dict__ attribute')]
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [768]
+INFO:     Started server process [928]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [928]
+INFO:     Started server process [1350]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1350]
+INFO:     Started server process [1366]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1366]
+INFO:     Started server process [1403]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-02-15 13:39:56,913 - server - INFO - Updating admin with id: admin_testuser1
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [46] using WatchFiles
+INFO:     Started server process [90]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
 
-==> /var/log/supervisor/frontend.out.log <==
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-
-ERROR in ./src/components/CustomerAuth.jsx
-Module build failed (from ./node_modules/babel-loader/lib/index.js):
-TypeError: /app/frontend/src/components/CustomerAuth.jsx: Cannot read properties of null (reading 'traverse')
-    at ImportDeclaration (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:876:44)
-    at NodePath._call (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:50:20)
-    at NodePath.call (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:40:18)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:87:31)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at traverse (/app/frontend/node_modules/@babel/traverse/lib/index.js:53:34)
-    at lazyEvaluatePropSource (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:856:7)
-    at lookupCrossFilePropSource (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:839:12)
-    at tracePropToSource (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:780:12)
-    at analyzeIdentifier (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:499:30)
-    at analyzeExpression (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:389:14)
-    at recordPropSources (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:811:26)
-    at PluginPass.JSXElement (/app/frontend/plugins/visual-edits/babel-metadata-plugin.js:1764:9)
-    at newFn (/app/frontend/node_modules/@babel/traverse/lib/visitors.js:168:14)
-    at NodePath._call (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:50:20)
-    at NodePath.call (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:40:18)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:87:31)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitSingle (/app/frontend/node_modules/@babel/traverse/lib/context.js:72:19)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:119:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-    at TraversalContext.visitQueue (/app/frontend/node_modules/@babel/traverse/lib/context.js:96:16)
-    at TraversalContext.visitMultiple (/app/frontend/node_modules/@babel/traverse/lib/context.js:68:17)
-    at TraversalContext.visit (/app/frontend/node_modules/@babel/traverse/lib/context.js:117:19)
-    at traverseNode (/app/frontend/node_modules/@babel/traverse/lib/traverse-node.js:130:17)
-    at NodePath.visit (/app/frontend/node_modules/@babel/traverse/lib/path/context.js:93:52)
-
-webpack compiled with 2 errors and 1 warning
-yarn run v1.22.22
-$ craco start
-Attempting to bind to HOST environment variable: 0.0.0.0
-If this was unintentional, check that you haven't mistakenly set it in your shell.
-Learn more here: https://cra.link/advanced-config
-
-Starting the development server...
-
-Compiled successfully!
-
-You can now view frontend in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://10.208.162.151:3000
-
-Note that the development build is not optimized.
-To create a production build, use yarn build.
-
-webpack compiled successfully
-yarn run v1.22.22
-$ craco start) for new JavaScript errors.
-    -   **Why fix this issue and what will be achieved with the fix?** The application is completely unusable. Fixing this will make the UI accessible again.
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.208.161.194:59642 - "GET /api/products?active_only=true HTTP/1.1" 200 OK
+INFO:     10.208.161.194:59642 - "GET /api/blog HTTP/1.1" 200 OK
+INFO:     10.208.161.194:59642 - "GET /api/categories HTTP/1.1" 200 OK
+INFO:     10.208.169.202:54454 - "GET /api/payment-methods HTTP/1.1" 200 OK
+INFO:     10.208.169.194:37142 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     10.208.161.194:59632 - "GET /api/notification-bar HTTP/1.1" 200 OK
+INFO:     10.208.161.194:59652 - "GET /api/social-links HTTP/1.1" 200 OK
+INFO:     10.208.169.194:37142 - "GET /api/products?active_only=true HTTP/1.1" 200 OK
+INFO:     10.208.169.202:54454 - "GET /api/wishlist/v_bxkltrbnpmldv1zy4 HTTP/1.1" 200 OK
+INFO:     10.208.169.194:52346 - "GET /api/daily-reward/settings HTTP/1.1" 200 OK
+INFO:     10.208.161.194:47952 - "GET /api/multiplier/active HTTP/1.1" 200 OK
+INFO:     10.208.161.194:47952 - "GET /api/social-links HTTP/1.1" 200 OK
+INFO:     10.208.169.202:34224 - "GET /api/referral/settings HTTP/1.1" 200 OK
+INFO:     10.208.169.194:52346 - "GET /api/daily-reward/settings HTTP/1.1" 200 OK
+INFO:     10.208.161.194:47952 - "GET /api/social-links HTTP/1.1" 200 OK
+INFO:     10.208.161.194:47960 - "GET /api/referral/settings HTTP/1.1" 200 OK
+INFO:     10.208.161.194:47960 - "GET /api/multiplier/active HTTP/1.1" 200 OK
+INFO:     10.208.169.194:56252 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     10.208.169.202:48354 - "GET /api/categories HTTP/1.1" 200 OK
+INFO:     10.208.169.194:56252 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     10.208.169.194:56252 - "GET /api/payment-methods HTTP/1.1" 200 OK
+INFO:     10.208.169.194:56252 - "GET /api/faqs HTTP/1.1" 200 OK
+INFO:     10.208.169.202:48354 - "GET /api/blog HTTP/1.1" 200 OK
+INFO:     10.208.169.194:56252 - "GET /api/social-links HTTP/1.1" 200 OK
+INFO:     10.208.169.194:56252 - "GET /api/notification-bar HTTP/1.1" 200 OK
+INFO:     10.208.169.202:48354 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.169.202:48354 - "GET /api/orders HTTP/1.1" 200 OK
+INFO:     10.208.169.202:48354 - "GET /api/analytics/overview HTTP/1.1" 200 OK
+INFO:     10.208.169.194:56252 - "GET /api/permissions HTTP/1.1" 200 OK
+INFO:     10.208.169.202:48902 - "GET /api/products HTTP/1.1" 200 OK
+INFO:     10.208.169.194:59890 - "GET /api/categories HTTP/1.1" 200 OK
+INFO:     10.208.169.194:59890 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     10.208.169.194:59890 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.169.194:36776 - "POST /api/track-visit HTTP/1.1" 200 OK
+INFO:     10.208.169.194:36776 - "POST /api/track-visit HTTP/1.1" 200 OK
+INFO:     10.208.169.202:46472 - "GET /api/categories HTTP/1.1" 200 OK
+INFO:     10.208.169.202:46464 - "GET /api/social-links HTTP/1.1" 200 OK
+INFO:     10.208.161.194:48338 - "GET /api/notification-bar HTTP/1.1" 200 OK
+INFO:     10.208.161.194:48336 - "GET /api/products?active_only=true HTTP/1.1" 200 OK
+INFO:     10.208.169.202:46474 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     10.208.169.202:46494 - "GET /api/blog HTTP/1.1" 200 OK
+INFO:     10.208.169.202:46502 - "GET /api/wishlist/v_my06dfaeomlm5wy1i HTTP/1.1" 200 OK
+INFO:     10.208.169.202:46484 - "GET /api/payment-methods HTTP/1.1" 200 OK
+INFO:     10.208.169.202:46464 - "GET /api/categories HTTP/1.1" 200 OK
+INFO:     10.208.161.194:48336 - "GET /api/social-links HTTP/1.1" 200 OK
+INFO:     10.208.169.194:36776 - "GET /api/products?active_only=true HTTP/1.1" 200 OK
+INFO:     10.208.161.194:48338 - "GET /api/wishlist/v_my06dfaeomlm5wy1i HTTP/1.1" 200 OK
+INFO:     10.208.169.202:46464 - "GET /api/blog HTTP/1.1" 200 OK
+INFO:     10.208.169.194:36794 - "GET /api/notification-bar HTTP/1.1" 200 OK
+INFO:     10.208.169.194:36796 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     10.208.169.194:36782 - "GET /api/payment-methods HTTP/1.1" 200 OK
+INFO:     10.208.169.194:40654 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.161.194:33970 - "GET /api/admins HTTP/1.1" 200 OK
+INFO:     10.208.169.194:55436 - "POST /api/auth/login HTTP/1.1" 500 Internal Server Error
+INFO:     10.208.161.194:54084 - "POST /api/admins HTTP/1.1" 403 Forbidden
+INFO:     10.208.139.130:36298 - "GET /api/admins HTTP/1.1" 403 Forbidden
+INFO:     10.208.139.130:36298 - "PUT /api/admins/admin_teststaff HTTP/1.1" 403 Forbidden
+INFO:     10.208.139.130:36298 - "DELETE /api/admins/admin_teststaff HTTP/1.1" 403 Forbidden
+INFO:     10.208.139.130:45812 - "POST /api/auth/login HTTP/1.1" 500 Internal Server Error
+INFO:     10.208.161.194:41102 - "GET /api/admins HTTP/1.1" 403 Forbidden
+INFO:     10.208.139.130:45828 - "POST /api/admins HTTP/1.1" 403 Forbidden
+INFO:     10.208.139.130:45828 - "PUT /api/admins/admin_staff1 HTTP/1.1" 403 Forbidden
+INFO:     10.208.139.130:45828 - "GET /api/admins HTTP/1.1" 403 Forbidden
+INFO:     10.208.169.211:38894 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.161.194:54010 - "GET /api/admins HTTP/1.1" 200 OK
+INFO:     10.208.161.194:54010 - "POST /api/admins HTTP/1.1" 500 Internal Server Error
+INFO:     10.208.139.130:57678 - "PUT /api/admins/admin_staff2 HTTP/1.1" 200 OK
+INFO:     10.208.161.194:54022 - "DELETE /api/admins/admin_staff2 HTTP/1.1" 200 OK
+INFO:     10.208.139.130:41630 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.139.130:41630 - "POST /api/admins HTTP/1.1" 200 OK
+INFO:     10.208.161.194:42096 - "GET /api/admins HTTP/1.1" 200 OK
+INFO:     10.208.139.130:41630 - "PUT /api/admins/admin_newstaff HTTP/1.1" 200 OK
+INFO:     10.208.139.130:41630 - "DELETE /api/admins/admin_newstaff HTTP/1.1" 200 OK
+INFO:     10.208.161.194:36046 - "GET /api/products?active_only=true HTTP/1.1" 200 OK
+INFO:     10.208.139.130:51600 - "GET /api/blog HTTP/1.1" 200 OK
+INFO:     10.208.161.194:36046 - "POST /api/track-visit HTTP/1.1" 200 OK
+INFO:     10.208.169.194:54056 - "GET /api/social-links HTTP/1.1" 200 OK
+INFO:     10.208.161.194:36046 - "GET /api/wishlist/v_8iuz1wd5cmlns0tk9 HTTP/1.1" 200 OK
+INFO:     10.208.169.211:51728 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     10.208.169.211:51718 - "GET /api/notification-bar HTTP/1.1" 200 OK
+INFO:     10.208.161.194:36052 - "GET /api/categories HTTP/1.1" 200 OK
+INFO:     10.208.169.194:54056 - "POST /api/track-visit HTTP/1.1" 200 OK
+INFO:     10.208.139.130:51600 - "GET /api/payment-methods HTTP/1.1" 200 OK
+INFO:     10.208.161.194:52218 - "POST /api/track-visit HTTP/1.1" 200 OK
+INFO:     10.208.169.194:49078 - "POST /api/track-visit HTTP/1.1" 200 OK
+INFO:     10.208.169.211:46208 - "GET /api/categories HTTP/1.1" 200 OK
+INFO:     10.208.161.194:52220 - "GET /api/social-links HTTP/1.1" 200 OK
+INFO:     10.208.169.211:46208 - "GET /api/wishlist/v_8iuz1wd5cmlns0tk9 HTTP/1.1" 200 OK
+INFO:     10.208.161.194:52218 - "GET /api/products?active_only=true HTTP/1.1" 200 OK
+INFO:     10.208.169.194:49078 - "GET /api/reviews HTTP/1.1" 200 OK
+INFO:     10.208.139.130:34824 - "GET /api/payment-methods HTTP/1.1" 200 OK
+INFO:     10.208.161.194:52218 - "GET /api/blog HTTP/1.1" 200 OK
+INFO:     10.208.139.130:34824 - "GET /api/notification-bar HTTP/1.1" 200 OK
+INFO:     10.208.169.194:53178 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.169.211:46032 - "GET /api/admins HTTP/1.1" 200 OK
+INFO:     10.208.139.130:38752 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.161.194:58446 - "GET /api/admins HTTP/1.1" 200 OK
+INFO:     10.208.161.194:58446 - "POST /api/admins HTTP/1.1" 200 OK
+INFO:     10.208.169.194:35366 - "PUT /api/admins/admin_testuser1 HTTP/1.1" 200 OK
+INFO:     10.208.161.194:58446 - "DELETE /api/admins/admin_testuser1 HTTP/1.1" 200 OK. Look for DEBUG: Updating admin with ID:, DEBUG: Found current user in DB:, and DEBUG: Current user performing action:.
+        4.  Inspect the entire  collection to check the data structure of existing staff members: .
+        5.  Review  in  and the corresponding call in  to ensure perfect alignment.
+    -   **Why fix this issue and what will be achieved with the fix?** This is a critical bug blocking a core administrative function, preventing the user from managing staff permissions.
     -   **Status:** IN PROGRESS
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Frontend
--   **Issue 2: Verify and Fix Deployment Readiness**
-    -   **Attempted fixes:** In a previous codebase, the agent fixed a  error by creating a static  in . This issue is likely to have returned with the new codebase.
-    -   **Next debug checklist:**
-        1.  Examine  to check how the  is being handled. If it's using , it is a critical deployment blocker.
-        2.  If it's a blocker, generate a static secret key and add it to  as . Update the server code to use this environment variable.
-        3.  Ensure  contains entries for  files.
-        4.  Call the  to perform a full health check after fixing any identified issues.
-    -   **Why fix this issue and what will be achieved with the fix?** To resolve critical security and stability vulnerabilities that prevent the application from being deployed successfully. A dynamic JWT secret causes all admin sessions to be invalidated on every server restart.
-    -   **Status:** NOT STARTED
     -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?** Backend
+    -   **Blocked on other issue:** None
 
 **In progress Task List**:
 -   None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - **(P0) Re-implement Checkout & Invoicing Flow:** The detailed user requirements for the checkout process were implemented on a previous codebase and wiped out by the latest repo swap. This entire feature needs to be built again from scratch. This includes the WhatsApp redirect, payment screenshot upload changing order status, invoice generation, and automated emails.
-  - **(P1) Re-implement Product Variation Editing:** The user wants to edit and reorder product variations from the admin panel. This was also implemented previously and needs to be re-added to .
-  - **(P2) Enhance FAQ Page:** The user requested grouping FAQs by category and adding a search bar. This was implemented but wiped out. It needs to be re-implemented by adding a  field to the FAQ model and updating both the public and admin FAQ pages.
+  - **(P0) Re-implement Checkout & Invoicing Flow:** This is the most significant feature from the original requirements that was lost during codebase swaps. It needs to be re-implemented from scratch, including the WhatsApp redirect, screenshot upload for order confirmation, and invoice generation/emailing.
+  - **(P1) Re-implement Product Variation Editing:** The ability for admins to edit and reorder product variations from the admin panel needs to be restored.
+  - **(P2) Enhance FAQ Page:** The functionality to group FAQs by category and add a search bar needs to be re-implemented.
+
 - **Future Tasks:**
   - Live purchase ticker
   - Bundle Deals section
@@ -237,82 +269,78 @@ $ craco start) for new JavaScript errors.
   - Sales Analytics Dashboard
 
 **Completed work in this session**
--   **Multiple Codebase Migrations:** Successfully replaced the entire application codebase five times using user-provided GitHub repositories (, , , , and ), preserving and restoring user data with each swap.
--   **Checkout & Order Flow (Wiped Out):** Implemented a full checkout-to-invoice pipeline, including WhatsApp redirects, screenshot uploads that changed order status, and dynamic invoice generation.
--   **Feature Implementation (Wiped Out):** Added and later removed Bundle Deals and a Live Purchase Ticker. Enhanced the FAQ page with categories and search.
--   **Bug Fixes (On previous codebases):**
-    -   Resolved critical  deployment errors by implementing a stable .
-    -   Fixed a Failed to process order error by creating a public endpoint for payment screenshot uploads.
-    -   Fixed an overly aggressive rate-limiter on the admin login page.
-    -   Corrected a bug where the Trustpilot script failed to load and send review invitations.
+- **Multiple Full Codebase Migrations:** Successfully replaced the application codebase multiple times (, , , ), preserving and restoring user data from MongoDB with each swap.
+- **Bug Fixes:**
+  - Resolved a critical JavaScript error that caused a blank screen on the frontend.
+  - Fixed a recurring deployment blocker by ensuring a static  is used.
+  - Fixed profit analytics calculations to be case-insensitive to order status (e.g., Completed vs. completed) and rounded all currency values in the UI.
+  - Implemented the correct store credit logic (deduct credits on payment confirmation, award cashback on order completion).
+  - Fixed staff permission seeding and implemented support for multiple QR codes on payment methods.
+  - Resolved numerous Python linting errors and optimized several database queries to fix N+1 issues.
+- **Deployment Readiness:**
+  - Removed hardcoded credentials (e.g., Google Service Account) from the codebase and moved them to environment variables.
+  - Corrected  file to prevent it from blocking necessary  files during deployment.
 
 **Earlier issues found/mentioned but not fixed**
--   Due to the frequent codebase replacements, all previously identified minor issues became irrelevant. The major pending work is the re-implementation of lost features.
+-   All previously known minor issues were wiped out by the frequent codebase replacements. The main pending work is the re-implementation of lost features.
 
 **Known issue recurrence from previous fork**
--   **Dynamic JWT Secret:** A critical deployment blocker where the  is generated randomly on each server start has occurred before. It was fixed, but the new  codebase is highly likely to have this same vulnerability. This invalidates all admin tokens on every restart, leading to  errors in a production environment.
+-   **ID vs _id Field Confusion:** A recurring problem where the application logic inconsistently uses MongoDB's default  and a custom uid=0(root) gid=0(root) groups=0(root) string field for document lookups. This is the root cause of the current Admin not found bug and has caused issues in the past. The production database likely contains data with mixed formats from previous code versions.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
 - **Backend**: FastAPI, Python, Motor (async MongoDB driver)
-- **Frontend**: React, Tailwind CSS, , 
+- **Frontend**: React, Tailwind CSS, Shadcn UI, Axios
 - **Database**: MongoDB
-- **Authentication**: Admin (JWT), Customer (Email OTP)
+- **Authentication**: Admin (JWT with a hardcoded fallback for ), Customer (Email OTP)
 
 **key DB schema**
--   **Order**: , , , ,  (e.g., 'pending', 'confirmed', 'completed'), , .
--   **Product**: , , , .
--   **FAQ**: , , .
--   **Customer**: , , .
-
-**changes in tech stack**
--   None. The stack has remained consistent (FastAPI/React/MongoDB) despite five full codebase replacements.
+-   **admins**: uid=0(root) gid=0(root) groups=0(root) (string),  (string),  (string, hashed),  (string, 'main_admin' or 'staff'),  (list of strings).
+-   **orders**: uid=0(root) gid=0(root) groups=0(root) (string, UUID),  (string),  (list),  (float),  (dict).
+-   **products**:  (string),  (string),  (list of dicts, including optional ).
 
 **All files of reference**
--   : Location of the critical bug that broke the UI.
--   : Core backend logic. Needs to be checked for the recurring  issue and modified to re-implement the checkout/invoicing flow.
--   : Needs to be checked for a static  and other required variables.
--   : Will need significant work to re-implement the user's detailed checkout flow.
--   : Will need to be created to display invoices.
--   : Needs to be updated to display payment screenshots and invoice links.
+-   : The monolithic backend file. The current bug involves the , , , and  functions.
+-   : The frontend component for managing staff, containing the API calls that are failing for the user.
+-   : Defines credentials, including the fallback  and .
 
 **Critical Info for New Agent**
--   **Your immediate task is to verify the fix for the black screen.** The application is currently unusable. Take a screenshot of the homepage.
--   **The user frequently replaces the entire codebase.** Be aware that any feature you build might be wiped out. The priority is to follow the user's most recent request.
--   **The checkout/invoicing flow is a major, detailed requirement.** It was implemented and then lost in the last code swap. You will need to re-implement this from the user's detailed instructions.
--   **Check for the recurring JWT Secret bug.** Before any deployment attempt, ensure a static  is defined in  and used in  to prevent  errors in production.
+-   **Your immediate priority is the Admin not found bug.** The user is blocked. Your first step should be to use the debug logs added by the previous agent to diagnose the issue after the user reproduces it. The problem is almost certainly related to inconsistent ID fields ( vs. uid=0(root) gid=0(root) groups=0(root)) between the code and the data in the production database.
+-   **The codebase has been swapped many times.** Be prepared for inconsistencies and lost features. The most critical missing feature is the entire checkout/invoicing flow.
+-   **Do not trust local testing alone.** The previous agent's fixes worked locally but failed for the user. The production data is the source of truth for debugging this issue.
 
 **documents and test reports created in this job**
--   
--   Data backups from the last migration are in the  directory (e.g., ).
+-   : Contains a high-level overview of the project, but may be out of sync due to codebase swaps.
+-   Test reports from  are located in .
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Replace code with . (Status: Completed, but introduced a critical bug).
-2.  **User:** (Implicitly reported via black screen) The app is broken. (Status: Fix applied, verification pending).
-3.  **User (Previous codebase):** Asks to run deployer agent. (Status: Completed).
-4.  **User (Previous codebase):** Fixes pricing () and product name in the WhatsApp message. (Status: Completed, but code wiped).
-5.  **User (Previous codebase):** WhatsApp redirect doesn't work on mobile. (Status: Completed, but code wiped).
-6.  **User (Previous codebase):** Provides detailed requirements for the full checkout, payment, and invoicing flow. (Status: Completed, but code wiped).
-7.  **User (Previous codebase):** Reports failed to process order error. (Status: Completed, but code wiped).
-8.  **User (Previous codebase):** Asks to replace code with . (Status: Completed).
-9.  **User (Previous codebase):** Asks to call deployer agent again. (Status: Completed).
-10. **User (Previous codebase):** Trustpilot send review is not working. (Status: Completed, but code wiped).
+1.  **Still says admin not found**: User confirms the staff management bug is not fixed. (Status: Open)
+2.  **When im in admin panel logged in...**: User provides a detailed report of the admin not found bug. (Status: In Progress)
+3.  **Use deployment agent...**: Request to check for deployment issues. (Status: Completed, issues fixed)
+4.  **https://github.com/gamerbolte/ganbro copy...**: The latest request to replace the entire codebase. (Status: Completed)
+5.  **The store credit should deduct from customer account...**: Request to fix store credit logic. (Status: Completed, fixed)
+6.  **https://github.com/gamerbolte/ganguli copy...**: A previous request to replace the codebase. (Status: Completed)
+7.  **round up the numbers...**: Request to fix number formatting and profit calculations. (Status: Completed, fixed)
+8.  **fix issues**: Generic request to fix deployment blockers. (Status: Completed)
+9.  **debugg and fix errors before i deploy**: General request to find and fix bugs. (Status: Completed)
+10. **https://github.com/gamerbolte/nglbro/ copy**: Another previous request to replace the codebase. (Status: Completed)
 
 **Project Health Check:**
--   **Broken**: Yes. The application is currently non-functional, displaying a blank black screen due to a critical JavaScript error.
+-   **Broken**: Yes. A core admin feature (staff management) is non-functional for the user, preventing them from managing their team's permissions.
 
 **3rd Party Integrations**
--   **Trustpilot**: Requires a Business Unit ID. Functionality was previously implemented but its status in the new codebase is unknown.
--   **Take.app**: Requires an API key. Functionality status in the new codebase is unknown.
--   **Gmail (SMTP)**: Configured in  to send emails for the customer OTP login system.
+-   **ImgBB**: Used for hosting uploaded images (like payment screenshots). API key is in .
+-   **Google Sheets**: Integrated for order syncing, but the credentials provided in the repo were invalid. The code was fixed to use environment variables, but the functionality is likely broken due to the bad credentials.
+-   **Trustpilot**: Mentioned in requirements, but implementation status in the current codebase is unknown.
+-   **Take.app**: Mentioned in requirements, but implementation status in the current codebase is unknown.
 
 **Testing status**
--   **Testing agent used after significant changes**: NO
+-   **Testing agent used after significant changes**: YES
 -   **Troubleshoot agent used after agent stuck in loop**: NO
 -   **Test files created**: None.
--   **Known regressions**: The entire feature set is a regression due to the most recent codebase swap. Key lost features include the detailed checkout/invoice flow, product variation editing, and numerous bug fixes.
+-   **Known regressions**: Major features like the **Checkout/Invoicing Flow** and **Product Variation Editing** have been lost due to codebase swaps and need to be re-implemented.
 
 **Credentials to test flow:**
 -   **Admin URL:** 
@@ -320,5 +348,4 @@ $ craco start) for new JavaScript errors.
 -   **Password:** 
 
 **What agent forgot to execute**
--   The agent has not yet taken a screenshot to verify that the fix for the critical black screen bug was successful. This is the most crucial next step.
--   The agent did not run the  on the newest  codebase to proactively identify recurring deployment blockers like the dynamic .</analysis>
+- The agent has repeatedly fixed the admin not found issue based on local tests, but has not successfully resolved it for the user's production environment. The next step MUST involve analyzing the production data and logs, rather than assuming a local fix will work.</analysis>
