@@ -407,22 +407,22 @@ async def login(credentials: UserLogin):
         if admin["password"] == hashed_password and admin.get("is_active"):
             # Update last login
             await db.admins.update_one(
-                {"_id": admin["_id"]},
+                {"id": admin["id"]},
                 {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}}
             )
             
-            token = create_token(admin["_id"])
+            token = create_token(admin["id"])
             return {
                 "token": token,
                 "user": {
-                    "id": admin["_id"],
+                    "id": admin["id"],
                     "username": admin.get("username"),
                     "email": admin.get("email"),
                     "name": admin.get("name"),
                     "role": admin.get("role"),
                     "permissions": admin.get("permissions", []),
                     "is_admin": True,
-                    "is_main_admin": admin.get("role") == "main_admin"
+                    "is_main_admin": admin.get("role") == "main_admin" or admin.get("is_main_admin")
                 }
             }
     
