@@ -533,6 +533,26 @@ async def update_admin(admin_id: str, admin_data: dict, current_user: dict = Dep
     if not current_user.get("is_main_admin"):
         raise HTTPException(status_code=403, detail="Only main admin can update admins")
     
+    # Log for debugging
+    logger.info(f"Updating admin with id: {admin_id}")
+    
+    # Check if admin exists - try both id and _id fields for backward compatibility
+    existing = await db.admins.find_one({"id": admin_id})
+    if not existing:
+        # Try with _id for old entries
+        existing = await db.admins.find_one({"_id": admin_id})
+        if existing:
+            # Migrate: add id field if missing
+            await db.admins.update_one(
+                {"_id": admin_id},
+                {"$set": {"id": admin_id}}
+            )
+            logger.info(f"Migrated admin {admin_id} to use id field")
+    
+    if not existing:
+        logger.error(f"Admin not found: {admin_id}")
+        raise HTTPException(status_code=404, detail="Admin not found")
+    
     update_data = {}
     if "permissions" in admin_data:
         update_data["permissions"] = admin_data["permissions"]
@@ -545,13 +565,11 @@ async def update_admin(admin_id: str, admin_data: dict, current_user: dict = Dep
     if "password" in admin_data and admin_data["password"]:
         update_data["password"] = hash_password(admin_data["password"])
     
-    result = await db.admins.update_one(
-        {"id": admin_id},
-        {"$set": update_data}
-    )
-    
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Admin not found")
+    # Update using whichever field exists
+    if existing.get("id"):
+        await db.admins.update_one({"id": admin_id}, {"$set": update_data})
+    else:
+        await db.admins.update_one({"_id": admin_id}, {"$set": update_data})
     
     return {"message": "Admin updated successfully"}
 
