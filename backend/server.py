@@ -536,7 +536,7 @@ async def update_admin(admin_id: str, admin_data: dict, current_user: dict = Dep
         update_data["password"] = hash_password(admin_data["password"])
     
     result = await db.admins.update_one(
-        {"_id": admin_id},
+        {"id": admin_id},
         {"$set": update_data}
     )
     
