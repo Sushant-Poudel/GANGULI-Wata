@@ -512,8 +512,20 @@ async def create_admin(admin_data: dict, current_user: dict = Depends(get_curren
     }
     
     await db.admins.insert_one(new_admin)
-    new_admin.pop("password")
-    return {"message": "Staff admin created successfully", "admin": new_admin}
+    
+    # Return without password and _id
+    return {
+        "message": "Staff admin created successfully", 
+        "admin": {
+            "id": admin_id,
+            "username": new_admin["username"],
+            "email": new_admin["email"],
+            "name": new_admin["name"],
+            "role": new_admin["role"],
+            "is_active": new_admin["is_active"],
+            "permissions": new_admin["permissions"]
+        }
+    }
 
 @api_router.put("/admins/{admin_id}")
 async def update_admin(admin_id: str, admin_data: dict, current_user: dict = Depends(get_current_user)):
