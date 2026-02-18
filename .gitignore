@@ -90,3 +90,7 @@ frontend/node_modules/.cache/default-development/8.pack
 *token.json*
 *credentials.json*
 google_service_account.json
+-e 
+# Environment files
+*.env
+*.env.*
